@@ -1,0 +1,25 @@
+[project]
+name = "geetest-solver-improved"
+version = "1.0.0"
+description = "Improved GeeTest v4 solver — hybrid of GeekedTest / wulu007/geetest-bypass / Datadome solver / nine-ONNX / variablepy. Pure python, no browser needed."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "requests>=2.31",
+  "numpy>=1.24",
+  "Pillow>=10.0",
+  "pycryptodome>=3.19",
+]
+[project.optional-dependencies]
+full = ["opencv-python>=4.8", "curl_cffi>=0.7"]
+icon = ["torch", "ultralytics", "scikit-image", "scipy", "ddddocr"]
+browser = ["playwright>=1.40"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["geetest_solver*"]
