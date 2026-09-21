@@ -1,4 +1,4 @@
-"""定数更新 (GeekedTest/deobfuscate.py の発想を自動化)。
+"""定数更新ヘルパーです (GeekedTest/deobfuscate.py のアイデアを自動化したもの)。
 
 使い方:
     python -m geetest_solver.deobfuscate
@@ -11,9 +11,9 @@ import json
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="GeeTest v4 の abo/lib 定数を更新する")
+    ap = argparse.ArgumentParser(description="GeeTest v4 の abo/lib 定数を取り直します")
     ap.add_argument("--base-url", default="https://gcaptcha4.geetest.com")
-    ap.add_argument("--json", action="store_true", help="JSON のみ出力")
+    ap.add_argument("--json", action="store_true", help="JSON だけ出します")
     a = ap.parse_args()
     from . import config as cfg
     before = cfg.as_dict()

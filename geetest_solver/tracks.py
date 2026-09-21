@@ -1,11 +1,11 @@
-"""人間らしいポインタ軌跡 (wulu007/hshinosa の track/* を移植。MIT)。
+"""人間らしいポインタの軌跡を作ります (wulu007/hshinosa の track/* を移植。MIT ライセンス)。
 
-参考元に対する改良点:
-- デフォルトON (wulu はデフォルトOFF、Geeked には存在しない)。
-  td 必須のサイトがあるため。
-- 入口を統一:gen_slide_track / gen_click_track / gen_nine_track /
+参考元からの改良ポイント:
+- デフォルトONです (wulu はデフォルトOFF、Geeked にはそもそもなし)。
+  td 必須のサイトがあるので。
+- 入口は統一しました:gen_slide_track / gen_click_track / gen_nine_track /
   gen_match_track / gen_winlinze_track + track_zip / track_unzip
-- ベジェ制御点 + ease(3t^2-2t^3) + ジッタ + 17ms サンプリング (参考元と同じ流儀)
+- ベジェ制御点 + ease(3t^2-2t^3) + ジッタ + 17ms サンプリング (参考元と同じ流儀です)
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ import random
 import time
 import zlib
 
-# イベント種別 (JS と同じ番号)
+# イベント種別です (JS と同じ番号です)
 START, MOVE, END, DOWN = 0, 1, 2, 3
 
 
@@ -26,14 +26,14 @@ def _rnd(a: float, b: float) -> float:
 
 
 def _round4(pt):
-    """座標を小数4桁に丸める (JS の _percent_round 相当)。"""
+    """座標を小数4桁に丸めます (JS の _percent_round 相当)。"""
     return (round(pt[0], 4), round(pt[1], 4))
 
 
 def _timestamps(duration: int, base: int = 0):
-    """base から base+duration まで、人間らしい間隔で時刻を刻む。
+    """base から base+duration まで、人間らしく間隔をあけて時刻を刻みます。
 
-    17ms 前後のランダム間隔でサンプリングする (実測の癖を模倣)。
+    17ms 前後のランダム間隔でサンプリングします (実測のクセの真似っこ)。
     """
     if duration <= 0:
         yield base
@@ -52,10 +52,10 @@ def _timestamps(duration: int, base: int = 0):
 
 
 def _controls(p0, p1):
-    """3次ベジェの制御点2つを始終点間にサンプリングする。
+    """3次ベジェの制御点2つを始終点の間にサンプリングします。
 
-    区間の 30%-70% あたりに置き、ランダムな横ずれを加えて手書き感を出す。
-    距離がほぼ0なら直線に潰す。
+    区間の 30%-70% あたりに置いて、ランダムな横ずれを足して手書き感を出します。
+    距離がほぼ0なら直線に潰しちゃいます。
     """
     x0, y0 = p0
     x1, y1 = p1
@@ -73,17 +73,17 @@ def _controls(p0, p1):
 
 
 def _bez(t, p0, p1, c1, c2):
-    """3次ベジェ曲線上の点を求める。"""
+    """3次ベジェ曲線上の点を求めます。"""
     m = 1 - t
     return (m**3 * p0[0] + 3 * m**2 * t * c1[0] + 3 * m * t**2 * c2[0] + t**3 * p1[0],
             m**3 * p0[1] + 3 * m**2 * t * c1[1] + 3 * m * t**2 * c2[1] + t**3 * p1[1])
 
 
 def _segment(p0, p1, dur: int, base: int = 0):
-    """p0 -> p1 へ dur ミリ秒かけて滑らかに移動するイベント列を作る。
+    """p0 -> p1 へ dur ミリ秒かけてぬるっと移動するイベント列を作ります。
 
-    時刻は [0,1] 規格化後に ease (3t^2-2t^3) で緩急を付け、
-    座標に微小ジッタを載せて [0,1] に収める。
+    時刻は [0,1] に直してから ease (3t^2-2t^3) で緩急をつけて、
+    座標にちょびっとジッタを載せて [0,1] に収めます。
     """
     times = list(_timestamps(dur, base))
     span = times[-1] - times[0]
@@ -100,7 +100,7 @@ def _segment(p0, p1, dur: int, base: int = 0):
 
 
 class TrackBuilder:
-    """軌跡セグメントを継ぎ足していく流暢ビルダー (wulu の TrackBuilder を簡略化)。"""
+    """軌跡セグメントを継ぎ足していく流暢ビルダーです (wulu の TrackBuilder を簡単にしたもの)。"""
 
     def __init__(self, start):
         self.cur = start
@@ -109,9 +109,9 @@ class TrackBuilder:
         self.events = [(0, *_round4(start), START)]
 
     def move_to(self, x, y, duration: int):
-        """(x, y) へ duration ミリ秒で移動する区間を追加する。
+        """(x, y) へ duration ミリ秒で移動する区間を足します。
 
-        継ぎ目は前区間の終点と重複するので落とす。
+        継ぎ目は前区間の終点とかぶるので落とします。
         """
         seg = _segment(self.cur, (x, y), duration, self.events[-1][0])
         self.events.extend(seg[1:])
@@ -120,23 +120,23 @@ class TrackBuilder:
         return self
 
     def down(self):
-        """現在位置を押下 (DOWN) マークする。"""
+        """今いるところを押下 (DOWN) マークします。"""
         e = self.events[-1]
         self.events[-1] = (e[0], e[1], e[2], DOWN)
         return self
 
     def end(self):
-        """現在位置を最終 END マークする。"""
+        """今いるところを最終 END マークします。"""
         e = self.events[-1]
         self.events[-1] = (e[0], e[1], e[2], END)
         self.end_point = self.cur
         return self
 
     def click(self, delay: int | None = None):
-        """押下 (DOWN) して delay ミリ秒後に自動解放 (END) する。
+        """押下 (DOWN) して delay ミリ秒後にぱっと離し (END) ます。
 
-        自動送信クリックの末尾パターン:同位置の DOWN 直後に END、
-        間に移動なし。
+        自動送信クリックの末尾パターン:おんなじ位置の DOWN 直後に END、
+        間に移動なし、です。
         """
         delay = random.randint(80, 120) if delay is None else delay
         self.down()
@@ -146,13 +146,13 @@ class TrackBuilder:
         return self
 
     def build(self, max_points: int = 150):
-        """イベント列を確定する。多すぎたら間引く (直近優先)。"""
+        """イベント列を確定します。多すぎたら間引きます (直近優先)。"""
         if self.end_point is None or self.dur <= 0:
-            raise ValueError("build 前に start/end/duration を決めること")
+            raise ValueError("build 前に start/end/duration を決めてくださいね")
         if len(self.events) <= max_points:
             return self.events
-        # MOVE 以外 (クリック等の重要点) は残し、MOVE だけ間引く。
-        # 終盤の点を優先して、クリック前後の粒度を保つ。
+        # MOVE 以外 (クリックとかの大事な点) は残して、MOVE だけ間引きます。
+        # 終盤の点を優先して、クリック前後の粒度を保ちます。
         moves = [p for p in self.events if p[3] == MOVE]
         rest = [p for p in self.events if p[3] != MOVE]
         need = max_points - len(rest) - 1
@@ -168,20 +168,20 @@ class TrackBuilder:
 
 
 def _payload(events, w: float, h: float):
-    """イベント列を送信用ペイロード (m/w/h/s/e/p) で包む。"""
+    """イベント列を送信用ペイロード (m/w/h/s/e/p) で包みます。"""
     s = int(time.time() * 1000)
     return {"m": 1, "w": w, "h": h, "s": s, "e": s + events[-1][0], "p": events}
 
 
 def _jitter(pt, j: float):
-    """目標座標に ±j の揺らぎを載せて [0,1] に収める。"""
+    """目標座標に ±j のゆらぎを載せて [0,1] に収めます。"""
     return (max(0.0, min(1.0, pt[0] + _rnd(-j, j))),
             max(0.0, min(1.0, pt[1] + _rnd(-j, j))))
 
 
 def gen_slide_track(set_left: int, w: float = 300.015625,
                     h: float = 261.5234375):
-    """スライド用ドラッグ軌跡を作る。戻り値は (ペイロード, passtime)。"""
+    """スライド用ドラッグ軌跡を作ります。戻り値は (ペイロード, passtime) です。"""
     tb = TrackBuilder((_rnd(0.3, 0.8), _rnd(0.85, 0.99)))
     passtime = random.randint(600, 1400)
     sx = _rnd(0.1, 0.15)
@@ -192,10 +192,10 @@ def gen_slide_track(set_left: int, w: float = 300.015625,
 
 
 def _two_click(cells, center, w=300.015625, h=259.6015625, jitter=0.045):
-    """2クリック系 (winlinze/match) 共通の骨格。
+    """2クリック系 (winlinze/match) 共通の骨格です。
 
-    ``center(r, c)`` で 0 始まりのセルを行き先の規格化座標に変換する。
-    1セル目へ移動→クリック→2セル目へ移動→クリック。戻り値は (ペイロード, 所要時間)。
+    ``center(r, c)`` で 0 始まりセルを行き先の規格化座標に変換します。
+    1セル目へ移動→クリック→2セル目へ移動→クリック。戻り値は (ペイロード, 所要時間) です。
     """
     (a, b), (c, d) = cells
     t1, t2 = _jitter(center(a, b), jitter), _jitter(center(c, d), jitter)
@@ -211,10 +211,10 @@ def _two_click(cells, center, w=300.015625, h=259.6015625, jitter=0.045):
 
 
 def gen_match_track(cells):
-    """match (3x3 入れ替え) 用の2クリック軌跡。
+    """match (3x3 入れ替え) 用の2クリック軌跡です。
 
-    ``cells`` は隣接2マスの 0 始まり座標。3x3 グリッドは画面いっぱい
-    (1マス 33.4% 刻み、前提は ``left: 33.4*first%`` 形式)。
+    ``cells`` は隣接2マスの 0 始まり座標です。3x3 グリッドは画面いっぱいで
+    1マス 33.4% 刻みです (``left: 33.4*first%`` 形式が前提)。
     """
     def center(i, j):
         return ((33.4 * i + 16.7) / 100, (33.4 * j + 16.7) / 100)
@@ -222,10 +222,10 @@ def gen_match_track(cells):
 
 
 def gen_winlinze_track(cells, w=300.015625, h=259.6015625):
-    """winlinze (五目) 用の2クリック軌跡。
+    """winlinze (五目) 用の2クリック軌跡です。
 
-    ``cells`` は 0 始まりの (移動元, 移動先)。5x5 盤面の絶対配置
-    (``left: 20*col+3%`` 等、1マス41px) からセル中心を求めてジッタを載せる。
+    ``cells`` は 0 始まりの (移動元, 移動先) です。5x5 盤面の絶対配置
+    (``left: 20*col+3%`` とか、1マス41px) からセル中心を求めてジッタを載せます。
     """
     def center(r, c):
         return ((20 * c + 3) / 100 + 20.5 / w, (19 * r + 4) / 100 + 20.5 / h)
@@ -234,15 +234,15 @@ def gen_winlinze_track(cells, w=300.015625, h=259.6015625):
 
 def gen_click_track(clicks, w=300.015625, h=259.6015625,
                     img_w=300.0, img_h=200.0, with_submit=True):
-    """画像クリック系 (icon/word/phrase) 用の複数クリック軌跡。
+    """画像クリック系 (icon/word/phrase) 用の複数クリック軌跡です。
 
-    ``clicks`` は検証画像基準の規格化 [(x, y)] ([0,1])。内部で要素座標に
-    換算するので、自作ソルバーは画像基準で返せばよい。各クリック後に
-    自動送信の DOWN+END を付け、最後に送信ボタンを押す
-    (``with_submit`` で省略可)。戻り値は (ペイロード, 所要時間)。
+    ``clicks`` は検証画像基準の規格化 [(x, y)] ([0,1]) です。中で要素座標に
+    換算するので、自作ソルバーは画像基準で返せばOKです。各クリックのあとに
+    自動送信の DOWN+END を付けて、最後に送信ボタンを押します
+    (``with_submit`` で省略できます)。戻り値は (ペイロード, 所要時間) です。
     """
     if not clicks:
-        raise ValueError("clicks が空")
+        raise ValueError("clicks が空っぽです")
     targets = [_jitter((x * img_w / w, y * img_h / h), 0.02) for x, y in clicks]
     if with_submit:
         targets = targets + [_jitter((0.5, 0.92), 0.01)]
@@ -262,14 +262,14 @@ def gen_click_track(clicks, w=300.015625, h=259.6015625,
 
 def gen_nine_track(cells, cols: int = 3,
                    w=300.015625, h=259.6015625):
-    """nine (3x3 グリッド) 用の複数クリック軌跡。
+    """nine (3x3 グリッド) 用の複数クリック軌跡です。
 
-    ``cells`` は 1 始まり [(row, col)]。グリッドが画面いっぱいで
-    送信ボタンが無い (nine_nums 到達で自動送信) ため、送信クリックは付けない。
-    セル中心は ``((col-0.5)/cols, (row-0.5)/cols)``。
+    ``cells`` は 1 始まり [(row, col)] です。グリッドが画面いっぱいで
+    送信ボタンがない (nine_nums 到達で自動送信) ので、送信クリックは付けません。
+    セル中心は ``((col-0.5)/cols, (row-0.5)/cols)`` です。
     """
     if not cells:
-        raise ValueError("cells が空")
+        raise ValueError("cells が空っぽです")
     targets = [_jitter(((c - 0.5) / cols, (r - 0.5) / cols), 0.05)
                for r, c in cells]
     n = len(targets)
@@ -286,17 +286,17 @@ def gen_nine_track(cells, cols: int = 3,
     return _payload(ev, w, h), ev[-1][0]
 
 
-# ---------- fflate 互換 gzip (wulu の track/compress.py) ----------
+# ---------- fflate 互換 gzip (wulu の track/compress.py が元ネタ) ----------
 def track_zip(track, mtime: int | None = None) -> str:
-    """軌跡を gg4.js と同じ方式で圧縮する:fflate の gzipSync + URL セーフ base64。
+    """軌跡を gg4.js とおんなじ方式で圧縮します:fflate の gzipSync + URL セーフ base64。
 
-    gzip ヘッダは fflate とバイト一致するよう手組みする (fflate は OS=3 (Unix)
-    固定で mtime に ``Date.now()/1000`` を書くが、:mod:`gzip` は OS=255 を出す)。
-    deflate ストリーム自体は zlib と fflate で実装が別なので完全一致はしない。
+    gzip ヘッダは fflate とバイト一致するように手組みしてます (fflate は OS=3 (Unix)
+    固定で mtime に ``Date.now()/1000`` を書くけど、:mod:`gzip` は OS=255 を出しちゃう)。
+    deflate ストリーム自体は zlib と fflate で実装が別なので完全一致はしません。
 
-    :param track: 圧縮する軌跡データ。
-    :param mtime: gzip ヘッダの更新時刻。省略時は現在時刻。
-    :return: パディングなし URL セーフ base64 の gzip ブロブ。
+    :param track: 圧縮したい軌跡データ。
+    :param mtime: gzip ヘッダの更新時刻。省略時は今の時刻。
+    :return: パディングなし URL セーフ base64 の gzip ブロブです。
     """
     raw = json.dumps(track, separators=(",", ":"), ensure_ascii=False).encode()
     comp = zlib.compressobj(6, zlib.DEFLATED, -zlib.MAX_WBITS)
@@ -310,6 +310,6 @@ def track_zip(track, mtime: int | None = None) -> str:
 
 
 def track_unzip(s: str):
-    """track_zip の逆変換 (デバッグ用)。パディングを補って展開する。"""
+    """track_zip の逆変換です (デバッグ用)。パディングを補って展開します。"""
     s += "=" * (-len(s) % 4)
     return json.loads(gzip.decompress(base64.urlsafe_b64decode(s)).decode())

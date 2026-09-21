@@ -1,25 +1,25 @@
-"""nine/icon/word ソルバー:ヒューリスティック + ONNX フック。
+"""nine/icon/word ソルバーです:ヒューリスティック + ONNX フック。
 
-hshinosa は非公開の SigLIP ONNX モデル (~9MB、同梱不可) を使う。
-Geeked は外部の ddddocr サーバが要る。改良点:依存なしで動く
+hshinosa は非公開の SigLIP ONNX モデル (~9MB、同梱できません) を使ってます。
+Geeked は外部の ddddocr サーバが要ります。うちは依存なしで動く
 ヒューリスティック (プロンプトとのセル別テンプレマッチ) を内蔵しつつ、
-任意の ONNX/自作モデルを差せるフックを付ける (hshinosa 式の
-マージン判定リトライ付き:上位3件のマージン、しきい値 2.2、低信頼度でもベスト)。
+任意の ONNX/自作モデルを差せるフックを付けてます (hshinosa 式の
+マージン判定リトライつき:上位3件のマージン、しきい値 2.2、低信頼度でもベストゲス)。
 """
 from __future__ import annotations
 
-_ONNX_MATCHER = None  # register_onnx_matcher() で設定する。未設定ならヒューリスティック
+_ONNX_MATCHER = None  # register_onnx_matcher() で設定します。未設定ならヒューリスティックです
 
 
 def register_onnx_matcher(fn):
-    """``fn(prompt_bytes, grid_bytes) -> list[float] (9 logits)`` を登録する。"""
+    """``fn(prompt_bytes, grid_bytes) -> list[float] (9 logits)`` を登録します。"""
     global _ONNX_MATCHER
     _ONNX_MATCHER = fn
     return fn
 
 
 def _load_images(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
-    """グリッド画像とプロンプト画像群を PIL で開く。"""
+    """グリッド画像とプロンプト画像たちを PIL で開きます。"""
     from PIL import Image
     import io
     grid = Image.open(io.BytesIO(imgs_bytes)).convert("RGB")
@@ -29,10 +29,10 @@ def _load_images(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
 
 def solve_nine_heuristic(imgs_bytes: bytes, ques_bytes_list: list[bytes],
                          nine_nums: int = 3) -> list[tuple[int, int]]:
-    """3x3 各セルをプロンプトとの照合スコアで順位付けする。
+    """3x3 各セルをプロンプトとの照合スコアで順位付けします。
 
     戻り値は 1 始まり [(row, col)] (hshinosa の線路形式)。
-    OpenCV があればそれで、無ければ純 PIL の SAD フォールバック。
+    OpenCV があればそれで、なければ純 PIL の SAD フォールバックです。
     """
     try:
         import cv2
@@ -50,7 +50,7 @@ def solve_nine_heuristic(imgs_bytes: bytes, ques_bytes_list: list[bytes],
                 tmpl = cv2.resize(prompt, (cell.shape[1], cell.shape[0]))
                 res = cv2.matchTemplate(cell, tmpl, cv2.TM_CCOEFF_NORMED)
                 scores.append((float(res.max()), (i + 1, j + 1)))
-        # 縮退ケース (ベタ塗りで NCC が全同点) -> SAD 順位付けにフォールスルー
+        # 縮退ケース (ベタ塗りで NCC が全同点) -> SAD 順位付けにフォールスルーします
         vals = [s for s, _ in scores]
         if max(vals) - min(vals) < 1e-6:
             raise ValueError("tie")
@@ -58,7 +58,7 @@ def solve_nine_heuristic(imgs_bytes: bytes, ques_bytes_list: list[bytes],
         return [pos for _, pos in scores[:nine_nums]]
     except Exception:
         pass
-    # PIL フォールバック:差分絶対値和 (SAD) で順位付け
+    # PIL フォールバック:差分絶対値和 (SAD) で順位付けします
     from PIL import Image
     import io
     grid, prompts = _load_images(imgs_bytes, ques_bytes_list)
@@ -79,10 +79,10 @@ def solve_nine_heuristic(imgs_bytes: bytes, ques_bytes_list: list[bytes],
 
 def solve_nine(imgs_bytes: bytes, ques_bytes_list: list[bytes],
                nine_nums: int = 3, margin_threshold: float = 2.2) -> list[tuple[int, int]]:
-    """ONNX 優先 (hshinosa 式)、ダメならヒューリスティック。
+    """ONNX 優先 (hshinosa 式)、ダメならヒューリスティックです。
 
-    ONNX マッチャー登録済みで信頼度十分 (マージン >= しきい値) なら採用。
-    低信頼度でもベストゲスを返す (呼び出し側が新 lot でリトライできる)。
+    ONNX マッチャー登録済みで信頼度じゅうぶん (マージン >= しきい値) なら採用。
+    低信頼度でもベストゲスを返します (呼び出し側が新 lot でリトライできるので)。
     """
     if _ONNX_MATCHER is not None:
         try:
@@ -94,7 +94,7 @@ def solve_nine(imgs_bytes: bytes, ques_bytes_list: list[bytes],
             cells = [((i // 3) + 1, (i % 3) + 1) for i in sorted(top)]
             if margin >= margin_threshold:
                 return cells
-            # 低信頼度:それでもベストゲスを返す
+            # 低信頼度:それでもベストゲスを返します
             return cells
         except Exception:
             pass
@@ -103,11 +103,11 @@ def solve_nine(imgs_bytes: bytes, ques_bytes_list: list[bytes],
 
 def segment_icon_boxes(grid_bgr, min_area: int = 150,
                        max_area: int = 6000) -> list:
-    """写真背景から貼り付けアイコンを切り出す (学習モデル不要)。
+    """写真背景から貼り付けアイコンを切り出します (学習モデルなしです)。
 
     マスク = 背景との色相差 (カラーアイコン用) と無彩色の極値
-    (黒白シルエット用) の OR。背景色相は彩度上位画素の中央値。
-    戻り値は ``[(x1, y1, x2, y2), ...]``。
+    (黒白シルエット用) の OR です。背景色相は彩度上位画素の中央値です。
+    戻り値は ``[(x1, y1, x2, y2), ...]`` です。
     """
     import cv2
     import numpy as np
@@ -119,7 +119,7 @@ def segment_icon_boxes(grid_bgr, min_area: int = 150,
     colored = (np.abs(H - bg) > 25) & (S > 60)
     extreme = (S < 50) & ((V < 60) | (V > 200))
     mask = (colored | extreme).astype("uint8")
-    # オープニングでアイコンと背景の細いテクスチャ橋を切る
+    # オープニングでアイコンと背景の細いテクスチャ橋を切ります
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,
                             np.ones((5, 5), "uint8"))
     n, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
@@ -128,13 +128,13 @@ def segment_icon_boxes(grid_bgr, min_area: int = 150,
         x, y, w, h, area = (int(v) for v in stats[k])
         if not (min_area < area < max_area and w > 8 and h > 8):
             continue
-        # アイコン箱はそこそこ埋まっているはず。スカスカ=テクスチャノイズ、
-        # べったり=背景領域 として除外する
+        # アイコン箱はそこそこ埋まってるはず。スカスカ=テクスチャノイズ、
+        # べったり=背景領域 として除外します
         fill = area / max(w * h, 1)
         if 0.15 > fill or fill > 0.95:
             continue
         boxes.append([x, y, x + w, y + h])
-    # 明らかな破片だけ結合:小さい方の 30% 超が重なったら同一アイコンとみなす
+    # 明らかな破片だけ結合します:小さい方の 30% 超が重なったら同一アイコンとみなします
     merged = []
     for b in boxes:
         for m in merged:
@@ -149,8 +149,8 @@ def segment_icon_boxes(grid_bgr, min_area: int = 150,
                 break
         else:
             merged.append(b)
-    # アイコンを収容できない小箱は捨て、テクスチャ橋で合体した巨大箱は
-    # 分割する (アイコンは ~30-60px 想定)
+    # アイコンを収容できない小箱は捨てて、テクスチャ橋で合体した巨大箱は
+    # 分割します (アイコンは ~30-60px 想定です)
     final = []
     for x1, y1, x2, y2 in merged:
         w, h = x2 - x1, y2 - y1
@@ -172,7 +172,7 @@ def segment_icon_boxes(grid_bgr, min_area: int = 150,
 
 
 def segment_mask(grid_bgr) -> object:
-    """アイコンマスク (segment_icon_boxes と同じ規則の2値画像)。"""
+    """アイコンマスクです (segment_icon_boxes と同じ規則の2値画像)。"""
     import cv2
     import numpy as np
     hsv = cv2.cvtColor(grid_bgr, cv2.COLOR_BGR2HSV)
@@ -184,7 +184,7 @@ def segment_mask(grid_bgr) -> object:
 
 
 def _silhouette_crop(prompt_rgba):
-    """プロンプトの透過マスクを bbox で切り出す。uint8 マスクか None を返す。"""
+    """プロンプトの透過マスクを bbox で切り出します。uint8 マスクか None を返します。"""
     import numpy as np
     a = (prompt_rgba[:, :, 3] > 0).astype("uint8") if prompt_rgba.shape[2] == 4 \
         else (prompt_rgba.mean(axis=2) < 128).astype("uint8")
@@ -197,12 +197,12 @@ def _silhouette_crop(prompt_rgba):
 def find_prompt_in_grid(grid_gray, sil_mask,
                         scales=(0.6, 0.8, 1.0, 1.2),
                         dark_thr: int = 80, bright_thr: int = 200):
-    """散布アイコングリッド内でプロンプトのシルエットを探す。
+    """散布アイコングリッドの中でプロンプトのシルエットを探します。
 
-    明暗2種の2値マップ (グリッド側アイコンはどちらにも化ける) × 複数スケールで
-    照合し、最良ピークの ``(スコア, cx_norm, cy_norm)`` を返す。スコアは NCC
-    ([-1, 1])。busy な写真背景では学習モデルなしだと ~0.5 が天井というのが
-    正直な限界 (参考リポジトリ共通)。
+    明暗2種の2値マップ (グリッド側アイコンはどっちにも化けます) × 複数スケールで
+    照合して、最良ピークの ``(スコア, cx_norm, cy_norm)`` を返します。スコアは NCC
+    ([-1, 1]) です。busy な写真背景だと学習モデルなしでは ~0.5 が天井っていうのが
+    正直な限界です (参考リポジトリみんな同じ)。
     """
     import cv2
     import numpy as np
@@ -225,7 +225,7 @@ def find_prompt_in_grid(grid_gray, sil_mask,
 
 
 def _fit_mask(p, h: int, w: int, scale: float = 0.9):
-    """2値シルエットを縦横比維持で (h, w) に収めて中央配置する。"""
+    """2値シルエットを縦横比キープで (h, w) に収めて真ん中に置きます。"""
     import cv2
     import numpy as np
     p = (np.asarray(p) > 0).astype("uint8")
@@ -240,12 +240,12 @@ def _fit_mask(p, h: int, w: int, scale: float = 0.9):
 
 
 def score_prompt_box(crop_gray, sil_mask) -> float:
-    """(プロンプトシルエット, YOLO 箱クロップ) の複合キュースコア。
+    """(プロンプトシルエット, YOLO 箱クロップ) の複合キュースコアです。
 
-    手がかり (いずれも縦横比維持マスク + 拡張リングで計算):
-    - 内外の明度差 (両極性。グリッド側は黒地にも白地にも化ける)
-    - 明/暗2値マップとの IoU
-    公式デモの実測では単一の手がかりは busy 背景で分離せず、合計が最良だった。
+    手がかり (どれも縦横比維持マスク + 拡張リングで計算します):
+    - 内外の明度差 (両極性。グリッド側は黒地にも白地にも化けるので)
+    - 明 / 暗2値マップとの IoU
+    公式デモの実測だと単一の手がかりは busy 背景で分離せず、合計がマシでした。
     """
     import cv2
     import numpy as np
@@ -269,10 +269,10 @@ def score_prompt_box(crop_gray, sil_mask) -> float:
 
 
 def solve_icon_yolo(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
-    """YOLO 検出 + キュースコア + ハンガリアン法で割り付ける。
+    """YOLO 検出 + キュースコア + ハンガリアン法で割り付けます。
 
-    ques 順の規格化 [(x, y)] を返す。バックエンド
-    (torch/ultralytics/モデル) が無い・箱ゼロなら None。
+    ques 順の規格化 [(x, y)] を返します。バックエンド
+    (torch/ultralytics/モデル) がない・箱ゼロなら None です。
     """
     from PIL import Image
     import io
@@ -324,11 +324,12 @@ def solve_icon_yolo(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
 
 def match_score_native(blob_mask, sil, scales=(0.85, 1.0, 1.15),
                        max_shift: int = 8) -> float:
-    """シルエットとブロブマスクの最良 IoU をスケール/シフト探索で求める。
+    """シルエットとブロブマスクの最良 IoU をスケール/シフト探索で探します。
 
-    アイコンはプロンプトとほぼ原寸で描かれるため、箱いっぱいに引き伸ばす
-    IoU と違って原寸近傍に重ねて ±ピクセルずらすだけ。
-    (best_iou, dy, dx, scale) を返す。適合位置はクリック位置の精密化に使う。
+    アイコンはプロンプトとほぼ原寸で描かれるので、箱いっぱいに引き伸ばす
+    IoU と違って原寸近傍に重ねて ±ピクセルずらすだけです。
+    (best_iou, dy, dx, scale) を返します。合った位置はクリック位置の
+    精密化に使います。
     """
     import cv2
     import numpy as np
@@ -358,10 +359,10 @@ def match_score_native(blob_mask, sil, scales=(0.85, 1.0, 1.15),
 
 
 def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
-    """セグメンテーション + 原寸探索 + ハンガリアン法で割り付ける。
+    """セグメンテーション + 原寸探索 + ハンガリアン法で割り付けます。
 
-    依存なし (torch/onnx 不要)。ques 順の規格化 [(x, y)] を返す。
-    セグメントが使い物にならなければ None。
+    依存なしです (torch/onnx いりません)。ques 順の規格化 [(x, y)] を返します。
+    セグメントが使い物にならなければ None です。
     """
     from PIL import Image
     import io
@@ -375,7 +376,7 @@ def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
         H, W = grid.shape[:2]
         bgr = cv2.cvtColor(grid, cv2.COLOR_RGB2BGR)
         boxes = segment_icon_boxes(bgr)
-        # YOLO 箱があれば合流する (破片の結合ルールは共通)
+        # YOLO 箱があれば合流します (破片の結合ルールは共通です)
         try:
             from ..yolo_icons import detect_icons
             for b in detect_icons(imgs_bytes):
@@ -395,7 +396,7 @@ def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             pass
         if not boxes:
             return None
-        # 割り付け問題を絞る。アイコンは大きいブロブ側にあるはず
+        # 割り付け問題を絞ります。アイコンは大きいブロブ側にあるはずなので
         if len(boxes) > 8:
             boxes = sorted(boxes, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]),
                            reverse=True)[:8]
@@ -425,7 +426,7 @@ def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             ri, ci = zip(*sorted(
                 ((i, max(range(m), key=lambda j: mat[i, j])) for i in range(n)),
                 key=lambda t: -mat[t[0], t[1]]))
-        # 品質ゲート:縮退行列 (全ゼロ列など) は後段のバックエンドに譲る
+        # 品質ゲート:縮退行列 (全ゼロ列とか) は後段のバックエンドに譲ります
         if float(mat[ri, ci].sum()) <= 0:
             return None
         out = []
@@ -433,7 +434,7 @@ def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             i, j = int(i), int(j)
             x1, y1, x2, y2 = boxes[j]
             crop = full[max(0, y1 - 2):y2 + 2, max(0, x1 - 2):x2 + 2]
-            # クリック位置 = 箱中心ではなく best-fit シルエットの中心
+            # クリック位置 = 箱の真ん中じゃなく best-fit シルエットの真ん中です
             s_ = sils[i]
             dy, dx, sc = fits[(i, j)]
             nh = max(1, int(s_.shape[0] * sc))
@@ -449,14 +450,14 @@ def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
 
 
 def solve_icon_clicks(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
-    """散布アイコンソルバー -> 規格化 [(x, y)] ([0,1], wulu レジストリ形式)。
+    """散布アイコンソルバーです -> 規格化 [(x, y)] ([0,1], wulu レジストリ形式)。
 
-    バックエンド鎖 (成功した時点で確定):
+    バックエンドの鎖です (うまくいった時点で確定):
     1. セグメンテーション + 原寸探索 + ハンガリアン法
-       (依存なし。torch があれば YOLO 箱も合流)
+       (依存なしです。torch があれば YOLO 箱も混ぜます)
     2. YOLO 検出 + キュースコア + ハンガリアン法
     3. 全グリッドのマルチスケール・シルエット探索 (最終手段)
-    ``ques`` の順序は保持する (v4 icon のクリックは順序付き)。
+    ``ques`` の順序はキープします (v4 icon のクリックは順序つきなので)。
     """
     from PIL import Image
     import io
@@ -487,7 +488,7 @@ def solve_icon_clicks(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             pt = (round(min(1.0, max(0.0, cx)), 4),
                   round(min(1.0, max(0.0, cy)), 4))
             out.append(pt)
-        # 近傍重複は順序保持で除去
+        # 近所でかぶった点は順序キープで間引きます
         uniq = []
         for p in out:
             if not any(abs(p[0] - u[0]) < 0.03 and abs(p[1] - u[1]) < 0.03
@@ -497,7 +498,7 @@ def solve_icon_clicks(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             return uniq
     except Exception:
         pass
-    # フォールバック:旧 nine セル近似 (API の体裁は保つ)
+    # フォールバック:昔ながらの nine セル近似 (API の体裁だけ保ちます)
     out = []
     for q in ques_bytes_list:
         r, c = solve_nine_heuristic(imgs_bytes, [q], 1)[0]

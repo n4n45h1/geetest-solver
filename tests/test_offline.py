@@ -1,10 +1,10 @@
-"""テスト"""
+"""オフラインテストです — ネットも captcha_id もいりません。"""
 import io
 import json
 
 
 def _make_slide_images(x0=120, seed=7):
-    """合成スライド画像を作る (背景にピース相当をはめ込んだもの)。"""
+    """合成スライド画像を作ります (背景にピース相当をはめ込んだやつ)。"""
     try:
         import cv2
         import numpy as np
@@ -13,7 +13,7 @@ def _make_slide_images(x0=120, seed=7):
     rng = np.random.RandomState(seed)
     bg = (rng.rand(150, 300, 3) * 255).astype("uint8")
     bg = cv2.GaussianBlur(bg, (5, 5), 0)
-    # 40x40 ピース (透明ふち付き)
+    # 40x40 ピース (透明ふちつき)
     sl = np.zeros((40, 40, 4), dtype="uint8")
     sl[4:-4, 4:-4, :3] = bg[50:82, x0:x0 + 32].copy()
     sl[4:-4, 4:-4, 3] = 255
@@ -23,7 +23,7 @@ def _make_slide_images(x0=120, seed=7):
 
 
 def test_pow_lot_crypto():
-    """PoW / lotParser / 暗号の往復テスト。"""
+    """PoW / lotParser / 暗号の往復テストです。"""
     from geetest_solver.protocol_utils import generate_pow, parse_abo_pair
     from geetest_solver.crypto import build_w, encrypt_pt0, gen_td_sign
     lot = "abcdef0123456789" * 4
@@ -43,7 +43,7 @@ def test_pow_lot_crypto():
 
 
 def test_slide_hybrid():
-    """ハイブリッドスライド検出のテスト。"""
+    """ハイブリッドなスライド検出のテストです。"""
     imgs = _make_slide_images()
     if imgs is None:
         print("slide SKIP (cv2 なし)")
@@ -51,32 +51,32 @@ def test_slide_hybrid():
     from geetest_solver.solvers import solve_slide, solve_slide_hybrid
     bg_b, sl_b, x0 = imgs
     x, conf, method = solve_slide_hybrid(bg_b, sl_b, 50)
-    # slice 側に 4px の透明ふちがある -> テンプレ x = x0-4 が正解
+    # slice 側に 4px の透明ふちがあるので、テンプレ x = x0-4 が正解です
     assert abs(x - (x0 - 4)) <= 3, f"got {x} want ~{x0-4} ({method} {conf:.3f})"
     assert solve_slide(bg_b, sl_b, 50) == x
     print(f"slide OK: x={x} (truth {x0}) conf={conf:.3f} method={method}")
 
 
 def test_boards():
-    """盤面ソルバー (gobang/match/winlinze) のテスト。"""
+    """盤面ソルバー (gobang/match/winlinze) のテストです。"""
     from geetest_solver.solvers import solve_gobang, solve_match, solve_winlinze
-    # gobang: 4つ並び + 空き
+    # gobang: 4つ並び + 空きマス
     b = [[0] * 5 for _ in range(5)]
     b[2] = [1, 1, 1, 1, 0]
     r = solve_gobang(b)
     assert r and r[1] == [2, 4], r
-    # match: 解ける/解けない両対応 (None 許容)
+    # match: 解ける/解けないどっちもありうる (None 許容)
     q = [1, 2, 1, 2, 1, 2, 0, 0, 0]
     m = solve_match(q)
     assert m is None or len(m) == 2
-    # winlinze: ほぼ完成行 + 動かせる余り駒があれば勝ち手あり
+    # winlinze: ほぼ完成行 + 動かせる余り駒があれば勝ち手ありのはず
     w = [1]*4 + [0] + [1] + [0]*19
     assert solve_winlinze(w) is not None
     print("boards OK")
 
 
 def test_tracks():
-    """全種の軌跡生成 + zip/unzip 往復テスト。"""
+    """全種の軌跡生成 + zip/unzip 往復テストです。"""
     from geetest_solver.tracks import (
         gen_click_track, gen_match_track, gen_nine_track,
         gen_slide_track, gen_winlinze_track, track_unzip, track_zip)
@@ -89,7 +89,7 @@ def test_tracks():
 
 
 def test_generate_w_and_registry():
-    """w 組み立て + ソルバーレジストリのテスト。"""
+    """w 組み立て + ソルバーレジストリのテストです。"""
     from geetest_solver.client import GeetestSolver
     g = GeetestSolver.__new__(GeetestSolver)
     g.captcha_id = "cid"
@@ -111,21 +111,21 @@ def test_generate_w_and_registry():
 
 
 def test_icon_positions():
-    """アイコン位置特定のテスト (合成円盤で検証)。"""
+    """アイコン位置特定のテストです (合成円盤でチェック)。"""
     import io
     import numpy as np
     from PIL import Image
     from geetest_solver.solvers import find_prompt_in_grid, solve_icon_clicks
     rng = np.random.RandomState(3)
     grid = (rng.rand(200, 300) * 255).astype("uint8")
-    # 既知中心の黒円盤を貼る
+    # わざと既知の中心に黒円盤を貼ります
     yy, xx = np.ogrid[:200, :300]
     disc = (xx - 200) ** 2 + (yy - 100) ** 2 <= 15 ** 2
     grid[disc] = 0
     buf = io.BytesIO()
     Image.fromarray(grid).convert("RGB").save(buf, format="PNG")
     grid_b = buf.getvalue()
-    # プロンプト:中央に黒円の 48x48 RGBA
+    # プロンプト:真ん中に黒円の 48x48 RGBA
     p = np.zeros((48, 48, 4), dtype="uint8")
     py, px = np.ogrid[:48, :48]
     m = (px - 24) ** 2 + (py - 24) ** 2 <= 15 ** 2

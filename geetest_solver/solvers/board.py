@@ -1,14 +1,14 @@
-"""盤面ソルバー:五目 (winlinze, 5x5) + マッチ (3x3 スワップ)。
+"""盤面ソルバーです:五目 (winlinze, 5x5) + マッチ (3x3 スワップ)。
 
-Geeked の五目は「n-1 個揃い + 空き1」のラインを探す汎用方式 (n x n)。
-wulu の winlinze/match は勝敗判定付きの総当たり。ここでは統一して
-汎用ライン列挙 + 勝敗判定で解く。
+Geeked の五目は「n-1 個揃い + 空き1」のラインを探す汎用方式 (n x n) で、
+wulu の winlinze/match は勝敗判定つきの総当たりです。うちでは統一して
+汎用ライン列挙 + 勝敗判定で解きます。
 """
 from __future__ import annotations
 
 
 def _lines(board):
-    """盤面の全ライン (行・列・斜め2方向) を座標列で列挙する。"""
+    """盤面の全ライン (行・列・斜め2方向) を座標列で列挙します。"""
     n = len(board)
     rows = [[(r, c) for c in range(n)] for r in range(n)]
     cols = [[(r, c) for r in range(n)] for c in range(n)]
@@ -22,9 +22,9 @@ def _lines(board):
 
 
 def _to_grid(ques, n: int):
-    """フラット (n*n) でも 2次元 (n x n) でも受け付け、2次元のコピーを返す。
+    """フラット (n*n) でも 2次元 (n x n) でも受け付けて、2次元のコピーを返します。
 
-    公式デモは 2次元で返してくるため両対応が必須 (live で IndexError を踏んだ教訓)。
+    公式デモは 2次元で返してくるので両対応が必須です (live で IndexError を踏んだ教訓)。
     """
     if isinstance(ques, (list, tuple)) and ques and isinstance(ques[0], (list, tuple)):
         return [list(r) for r in ques]
@@ -33,7 +33,7 @@ def _to_grid(ques, n: int):
 
 
 def _find_completion(board, line_len: int | None = None):
-    """同種駒 n-1 + 空き1 のラインを探し、(既存駒, 空きマス) を返す。"""
+    """同種駒 n-1 + 空き1 のラインを探して、(既存駒, 空きマス) を返します。"""
     n = len(board)
     need = (line_len or n) - 1
     for line in _lines(board):
@@ -49,9 +49,9 @@ def _find_completion(board, line_len: int | None = None):
 
 
 def solve_gobang(board, line_len: int | None = None):
-    """Geeked 互換:[[移動元行, 移動元列], [移動先行, 移動先列]] 形式で返す。
+    """Geeked 互換:[[移動元行, 移動元列], [移動先行, 移動先列]] 形式で返します。
 
-    フラット25要素 (Geeked の線路形式) でも 2次元盤面でも受け付ける。
+    フラット25要素 (Geeked の線路形式) でも 2次元盤面でもOKです。
     """
     if isinstance(board, (list, tuple)) and board and not isinstance(board[0], (list, tuple)):
         n = int(len(board) ** 0.5)
@@ -62,12 +62,12 @@ def solve_gobang(board, line_len: int | None = None):
     if not hit:
         return None
     filled, empty = hit
-    # 既存駒の1つを空きマスへ動かす (wulu の winlinze と同じ意味)
+    # 既存駒の1つを空きマスへ動かします (wulu の winlinze と同じ意味)
     return [list(filled[0]), list(empty)]
 
 
 def _win_3x3(b, allow_zero: bool = False) -> bool:
-    """3x3 の勝敗判定。allow_zero=True だと空行 (0並び) も勝ち扱いにする。"""
+    """3x3 の勝敗判定です。allow_zero=True だと空行 (0並び) も勝ち扱いにします。"""
     for i in range(3):
         if allow_zero:
             if b[i][0] == b[i][1] == b[i][2]:
@@ -85,17 +85,17 @@ def _win_3x3(b, allow_zero: bool = False) -> bool:
 
 
 def _line_through(cells, r: int, c: int) -> bool:
-    """(r, c) がライン上に載っているか。"""
+    """(r, c) がライン上に載ってるかどうかです。"""
     return (r, c) in cells
 
 
 def solve_match(ques) -> tuple | None:
-    """3x3 隣接スワップソルバー (wulu の match.py を整理したもの)。
+    """3x3 隣接スワップソルバーです (wulu の match.py を整理したもの)。
 
-    フラット9要素でも 2次元 3x3 でも受け付ける。公式デモの実測で
-    空行 (0) もサーバ側では勝ち扱いと判明したため、非ゼロ成立を優先し、
-    ダメなら「交換セルが成立ライン上に載る」ゼロ成立にフォールバックする
-    (wulu より厳密。wulu は無関係なゼロ成立も採用してしまう)。
+    フラット9要素でも 2次元 3x3 でも受け付けます。公式デモの実測で
+    空行 (0) もサーバ側では勝ち扱いと分かったので、非ゼロ成立を優先しつつ、
+    交換セルが成立ライン上に載る場合だけゼロ成立にフォールバックします
+    (wulu よりちょっと厳しめ。wulu は無関係なゼロ成立も採用しちゃう)。
     """
     b = _to_grid(ques, 3)
     swaps = []
@@ -112,7 +112,7 @@ def solve_match(ques) -> tuple | None:
             try:
                 if _win_3x3(b, allow_zero):
                     if allow_zero:
-                        # 交換した手が成立ラインに関与していること
+                        # 交換した手が成立ラインに関わってること。
                         # (前からあるラインに無関係な手を返さないため)
                         lines = ([[(i, k) for k in range(3)] for i in range(3)]
                                  + [[(k, i) for k in range(3)] for i in range(3)]
@@ -131,7 +131,7 @@ def solve_match(ques) -> tuple | None:
 
 
 def _win_5x5(b) -> bool:
-    """5x5 の五目勝敗判定 (全ウィンドウ:横・縦・斜め2方向)。"""
+    """5x5 の五目勝敗判定です (全ウィンドウ:横・縦・斜め2方向)。"""
     n = 5
     for r in range(n):
         for c in range(n - 4):
@@ -153,9 +153,9 @@ def _win_5x5(b) -> bool:
 
 
 def solve_winlinze(ques) -> tuple | None:
-    """5x5 五目:どれか1駒を空きマスへ動かして勝てる手を探す (wulu 流)。
+    """5x5 五目です:どれか1駒を空きマスへ動かして勝てる手を探します (wulu 流)。
 
-    フラット25要素でも 2次元 5x5 でも受け付ける。
+    フラット25要素でも 2次元 5x5 でも受け付けます。
     """
     n = 5
     b = _to_grid(ques, n)

@@ -1,8 +1,8 @@
-"""任意の BrowserVT ヘルパー (hshinosa/hybrid_vt.py の発想)。
+"""おまけの BrowserVT ヘルパーです (hshinosa/hybrid_vt.py のアイデア)。
 
-非ブラウザの TLS 指紋を検出して解けない ``svg_seed`` を返してくる
-バックエンドがある。その場合、ブラウザが発行した verifyType トークンを
-借りるのが手っ取り早い。``pip install playwright && playwright install chromium`` が必要。
+非ブラウザの TLS 指紋を見抜いて、解けない ``svg_seed`` を返してくる
+バックエンドがあります。そんなときはブラウザが出した verifyType トークンを
+借りちゃうのが手っ取り早いです。``pip install playwright && playwright install chromium`` が要ります。
 
     from geetest_solver.browser_vt import BrowserVT
     vt = BrowserVT(signup_url=..., email_selector=..., submit_text=...,
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 
 class BrowserVT:
-    """ヘッドレス Chrome で対象サイトの verifyType トークンを横取りする。"""
+    """ヘッドレス Chrome で対象サイトの verifyType トークンを横取りします。"""
 
     def __init__(self, signup_url: str, email_selector: str = 'input[type="email"]',
                  submit_text: str = "Send", intercept_substring: str = "geeTestForm",
@@ -31,20 +31,20 @@ class BrowserVT:
 
     @staticmethod
     def _dig(obj, path):
-        """`{"data": {"verifyType": ...}}` のような入れ子をパスで掘る。"""
+        """`{"data": {"verifyType": ...}}` みたいな入れ子をパスで掘ります。"""
         for k in path:
             obj = obj[k]
         return obj
 
     def get_vt_for(self, identifier: str) -> tuple[str, str]:
-        """指定識別子でサイトを操作し、(verifyType, verifyLot) を返す。"""
+        """指定の識別子でサイトを操作して、(verifyType, verifyLot) を持ち帰ります。"""
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as e:
-            raise RuntimeError("playwright が必要: pip install playwright") from e
+            raise RuntimeError("playwright が要ります: pip install playwright") from e
         captured: dict = {}
         with sync_playwright() as p:
-            # 自動化検出よけのおまじない付きで起動
+            # 自動化検出よけのおまじない付きで起動します
             browser = p.chromium.launch(headless=self.headless,
                                         args=["--disable-blink-features=AutomationControlled"])
             ctx = browser.new_context()
@@ -70,6 +70,6 @@ class BrowserVT:
                 time.sleep(0.2)
             browser.close()
         if "json" not in captured:
-            raise RuntimeError(f"{self.intercept_substring!r} を含むレスポンスを傍受できなかった")
+            raise RuntimeError(f"{self.intercept_substring!r} を含むレスポンスを拾えませんでした")
         j = captured["json"]
         return self._dig(j, self.vt_path), self._dig(j, self.lot_path)

@@ -1,20 +1,20 @@
-"""アイコン検出バックエンド:カスタム YOLO (syncrain/geetest-solver, MIT)。
+"""アイコン検出バックエンドです:カスタム YOLO (syncrain/geetest-solver, MIT)。
 
-``best.pt`` は GeeTest アイコン110クラスで学習した YOLOv8n (ここでは
-``icon``/``tip`` の検出だけ使う)。18MB あるため同梱せず、初回に
-上流リポジトリから取得してキャッシュする::
+``best.pt`` は GeeTest アイコン110クラスで学習した YOLOv8n です (ここでは
+``icon``/``tip`` の検出だけ使います)。18MB あるので同梱せず、初回に
+上流リポジトリから取ってきてキャッシュします::
 
     ~/.cache/geetest_solver/best.pt
 
 クレジット: https://github.com/syncrain/geetest-solver (MIT, (c) 2026 kv)。
-``torch`` + ``ultralytics`` が必要 (``pip install -e ".[icon]"``)。
-インポートは遅延させるので、コアのソルバーは依存しない。
+``torch`` + ``ultralytics`` が要ります (``pip install -e ".[icon]"``)。
+インポートは遅延させるので、コアのソルバーは依存しません。
 """
 from __future__ import annotations
 
 import os
 
-# 上流リポジトリ直下のモデルファイル (MIT ライセンス、再配布ではなく取得)
+# 上流リポジトリ直下のモデルファイルです (MIT ライセンス。再配布じゃなく取得します)
 MODEL_URL = ("https://raw.githubusercontent.com/syncrain/geetest-solver"
              "/main/geetest_solver/best.pt")
 CACHE_PATH = os.path.join(os.path.expanduser("~"), ".cache",
@@ -25,7 +25,7 @@ _model_tried = False
 
 
 def model_path() -> str | None:
-    """キャッシュ済みモデルのパスを返す。初回はダウンロードする。失敗時は None。"""
+    """キャッシュ済みモデルのパスを返します。初回はダウンロードします。ダメなら None。"""
     if os.path.exists(CACHE_PATH):
         return CACHE_PATH
     try:
@@ -44,7 +44,7 @@ def model_path() -> str | None:
 
 
 def get_model():
-    """YOLO を遅延ロードする。torch/ultralytics/モデルが無ければ None。"""
+    """YOLO を遅延ロードします。torch/ultralytics/モデルがなければ None です。"""
     global _model, _model_tried
     if _model_tried:
         return _model
@@ -52,7 +52,7 @@ def get_model():
     try:
         os.environ.setdefault("YOLO_VERBOSE", "False")
         from ultralytics import YOLO
-        # 開発時の上書き:横に置いたモデルがあれば優先する
+        # 開発時の上書き:横に置いたモデルがあればそっちを優先します
         for cand in (os.environ.get("GEETEST_YOLO_PATH", ""),
                      "/tmp/geetest_ref2/syncrain/geetest_solver/best.pt"):
             if cand and os.path.exists(cand):
@@ -68,15 +68,15 @@ def get_model():
 
 def detect_icons(grid_bytes: bytes, conf: float = 0.35,
                  imgsz: int = 640) -> list:
-    """グリッド画像から ``icon`` クラスの ``[(x1, y1, x2, y2), ...]`` を返す (ピクセル座標)。"""
+    """グリッド画像から ``icon`` クラスの箱 ``[(x1, y1, x2, y2), ...]`` を返します (ピクセル座標)。"""
     model = get_model()
     if model is None:
         return []
     try:
         import cv2
         import numpy as np
-        # 注意:バイト列をそのまま ndarray 化して predict に渡すと失敗する。
-        # 必ず imdecode して画像化すること。
+        # 注意:バイト列をそのまま ndarray 化して predict に渡すとコケます。
+        # 必ず imdecode して画像化してください (ハマりポイントでした)。
         img = cv2.imdecode(np.frombuffer(grid_bytes, dtype="uint8"),
                            cv2.IMREAD_COLOR)
         if img is None:

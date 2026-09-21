@@ -1,4 +1,4 @@
-"""ソルバー関数の一覧 (公開 API)。
+"""ソルバー関数の一覧です。ここから公開 API を import できます。
 """
 
 from .board import solve_gobang, solve_match, solve_winlinze

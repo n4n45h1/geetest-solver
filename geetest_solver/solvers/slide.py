@@ -1,10 +1,10 @@
-"""スライドソルバー。
+"""ハイブリッドなスライド距離ソルバーです。
 
-どのリポジトリも単独ではやっていない組み合わせ:
+どのリポジトリも単独ではやってない組み合わせです:
 - A: MORPH_GRADIENT + TM_CCOEFF_NORMED + ypos 帯切り出し + 透過処理 (wulu007)
 - B: Canny(100,200) + TM_CCOEFF_NORMED (GeekedTest / aster-go の Datadome ソルバー)
-- 信頼度勝負:両方走らせて maxVal が高い方を採用。ypos 帯で外したら全画像にフォールバック。
-  戻り値は背景画像座標系の setLeft (px)。
+- 信頼度勝負:両方走らせて maxVal が高い方を採用します。ypos 帯で外したら全画像にフォールバック。
+  戻り値は背景画像座標系の setLeft (px) です。
 """
 from __future__ import annotations
 
@@ -17,26 +17,26 @@ except Exception:
 
 
 def _decode(bg_bytes: bytes, slice_bytes: bytes):
-    """背景・ピースのバイト列を OpenCV 画像にデコードする。"""
+    """背景・ピースのバイト列を OpenCV 画像にデコードします。"""
     import numpy as _np
     import cv2 as _cv2
     bg = _cv2.imdecode(_np.frombuffer(bg_bytes, _np.uint8), _cv2.IMREAD_COLOR)
     sl = _cv2.imdecode(_np.frombuffer(slice_bytes, _np.uint8), _cv2.IMREAD_UNCHANGED)
     if bg is None or sl is None:
-        raise ValueError("背景/ピース画像のデコードに失敗")
+        raise ValueError("背景/ピース画像のデコードに失敗しました")
     return bg, sl
 
 
 def _slice_gray(sl) -> object:
-    """ピースをグレースケール化する。透過部分は黒で埋める。
+    """ピースをグレースケール化します。透過部分は黒で埋めます。
 
-    wulu の工夫。aster は PIL の bbox 切り出しで同等のことをしていた。
+    wulu の工夫です。aster は PIL の bbox 切り出しで同じことをしてました。
     """
     import cv2 as _cv2
     if len(sl.shape) == 3 and sl.shape[2] == 4:
         alpha = sl[:, :, 3]
         g = _cv2.cvtColor(sl, _cv2.COLOR_BGR2GRAY)
-        g[alpha == 0] = 0  # 透明部分を黒に固定
+        g[alpha == 0] = 0  # 透明部分は黒に固定
         return g
     if len(sl.shape) == 3:
         return _cv2.cvtColor(sl, _cv2.COLOR_BGR2GRAY)
@@ -44,14 +44,14 @@ def _slice_gray(sl) -> object:
 
 
 def _match_gradient(bg_gray, sl_gray, ypos: int):
-    """方式 A (wulu):モルフォロジー勾配で輪郭を立てて照合する。"""
+    """方式 A (wulu 流):モルフォロジー勾配で輪郭を立てて照合します。"""
     import cv2 as _cv2
     kernel = _cv2.getStructuringElement(_cv2.MORPH_RECT, (3, 3))
     mg_bg = _cv2.morphologyEx(bg_gray, _cv2.MORPH_GRADIENT, kernel)
     mg_sl = _cv2.morphologyEx(sl_gray, _cv2.MORPH_GRADIENT, kernel)
     h = mg_sl.shape[0]
     if ypos > 0 and ypos + h <= mg_bg.shape[0]:
-        # ypos が分かれば帯だけ探す (速い・誤検出が減る)
+        # ypos が分かれば帯だけ探します (速いし誤検出も減ります)
         search = mg_bg[ypos:ypos + h, :]
         y_off = ypos
     else:
@@ -63,7 +63,7 @@ def _match_gradient(bg_gray, sl_gray, ypos: int):
 
 
 def _match_canny(bg_gray, sl_gray, ypos: int):
-    """方式 B (Geeked/aster):Canny エッジ化してから照合する。"""
+    """方式 B (Geeked/aster 流):Canny エッジ化してから照合します。"""
     import cv2 as _cv2
     h = sl_gray.shape[0]
     margin = 10
@@ -85,9 +85,9 @@ def _match_canny(bg_gray, sl_gray, ypos: int):
 
 def solve_slide_hybrid(bg_bytes: bytes, slice_bytes: bytes,
                        ypos: int = 0) -> tuple[int, float, str]:
-    """(set_left, 信頼度, 採用方式名) を返す。"""
+    """(set_left, 信頼度, 採用方式名) を返します。"""
     if not _HAS_CV2:
-        raise RuntimeError("opencv が必要: pip install opencv-python")
+        raise RuntimeError("opencv が要ります: pip install opencv-python")
     import cv2 as _cv2
     bg, sl = _decode(bg_bytes, slice_bytes)
     bg_gray = _cv2.cvtColor(bg, _cv2.COLOR_BGR2GRAY)
@@ -97,7 +97,7 @@ def solve_slide_hybrid(bg_bytes: bytes, slice_bytes: bytes,
         bx, _, bc = _match_canny(bg_gray, sl_gray, ypos)
     except Exception:
         bx, bc = ax, -1.0
-    # 勾配方式の信頼度が低ければ全画像で再探索するフォールバック
+    # 勾配方式の信頼度が低かったら全画像で探し直すフォールバックです
     if ac < 0.15:
         try:
             res = _cv2.matchTemplate(
@@ -117,11 +117,11 @@ def solve_slide_hybrid(bg_bytes: bytes, slice_bytes: bytes,
 
 
 def solve_slide(bg_bytes: bytes, slice_bytes: bytes, ypos: int = 0) -> int:
-    """setLeft (px) を返すメイン API。ハイブリッドの勝者を採用する。"""
+    """setLeft (px) を返すメイン API です。ハイブリッドの勝者を採用します。"""
     x, _, _ = solve_slide_hybrid(bg_bytes, slice_bytes, ypos)
     return x
 
 
 def userresponse_from_setleft(set_left: int) -> float:
-    """setLeft -> userresponse 変換。全フォーク共通の係数: left/1.0059466...+2。"""
+    """setLeft -> userresponse 変換です。全フォーク共通の係数: left/1.0059466...+2。"""
     return set_left / 1.0059466666666665 + 2

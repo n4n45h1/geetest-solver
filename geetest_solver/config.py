@@ -1,11 +1,11 @@
-"""プロトコル定数 (ライブ更新可能)。
+"""プロトコル定数の置き場です。ライブ更新できます。
 
-GeekedTest は ``mapping``/``abo`` をハードコードしていたため数週間で陳腐化する。
-wulu007 は最新値を保っているが ``config.py`` への直書きである。
+GeekedTest は ``mapping``/``abo`` を直書きしていたので数週間で腐っちゃいます。
+wulu007 は最新値を保ってますが ``config.py`` への直書きです。
 
-改良点:既知の正しい初期値 (2026 時点で wulu007 と同期済み) を持ちつつ、
-ライブの ``gcaptcha4.js`` から ``refresh()`` で更新できる
-(Geeked の deobfuscate.py の発想を自動化 + ディスクキャッシュ化)。
+うちは既知の正しい初期値 (2026 時点で wulu007 と同期済み) を持ちつつ、
+ライブの ``gcaptcha4.js`` から ``refresh()`` で更新できます
+(Geeked の deobfuscate.py のアイデアを自動化 + ディスクキャッシュ化したものです)。
 """
 from __future__ import annotations
 
@@ -27,21 +27,21 @@ GEE_GUARD = {
             "rew": "3", "snh": "3", "res": "3", "cdc": "3"}
 }
 
-VERSION = "v1.9.7+"  # この定数を取得した gcaptcha4.js のバージョン
+VERSION = "v1.9.7+"  # この定数を取ってきた gcaptcha4.js のバージョン
 
 _CACHE_FILE = os.path.join(os.path.dirname(__file__), ".config_cache.json")
 _CACHE_TTL = 7 * 24 * 3600  # キャッシュの有効期間:7日
 
 
 def as_dict() -> dict:
-    """現在の定数を辞書で返す。"""
+    """今の定数を辞書で返します。"""
     return {"biht": BIHT, "lib_key": LIB_KEY, "lib_val": LIB_VAL,
             "abo_key": ABO_KEY, "abo_val": ABO_VAL,
             "em": EM, "gee_guard": GEE_GUARD, "version": VERSION}
 
 
 def _apply(d: dict) -> None:
-    """辞書の値でモジュール定数を上書きする。"""
+    """辞書の値でモジュール定数を上書きします。"""
     global BIHT, LIB_KEY, LIB_VAL, ABO_KEY, ABO_VAL, EM, GEE_GUARD, VERSION
     BIHT = d.get("biht", BIHT)
     LIB_KEY = d.get("lib_key", LIB_KEY)
@@ -54,7 +54,7 @@ def _apply(d: dict) -> None:
 
 
 def load_cache() -> bool:
-    """ディスクキャッシュが有効なら読み込む。失敗しても False を返すだけ。"""
+    """ディスクキャッシュが有効なら読み込みます。ダメでも False を返すだけです。"""
     try:
         if not os.path.exists(_CACHE_FILE):
             return False
@@ -69,7 +69,7 @@ def load_cache() -> bool:
 
 
 def save_cache() -> None:
-    """現在の定数をディスクに保存する (失敗しても無視)。"""
+    """今の定数をディスクに保存します (失敗しても気にしません)。"""
     try:
         d = as_dict()
         d["_ts"] = time.time()
@@ -81,14 +81,14 @@ def save_cache() -> None:
 
 def refresh(base_url: str = "https://gcaptcha4.geetest.com",
             timeout: int = 15) -> dict:
-    """ライブの gcaptcha4.js から lib/abo キーを再抽出する。
+    """ライブの gcaptcha4.js から lib/abo キーを取り直します。
 
-    GeekedTest/deobfuscate.py と同じ発想だが全自動。失敗しても
-    内蔵の初期値を保つので、解読処理が壊れることはない。
+    GeekedTest/deobfuscate.py と同じ発想ですが全自動です。失敗しても
+    内蔵の初期値を保つので、解読が壊れることはありません。
     """
     import requests
 
-    # 1. /load を叩いて静的 JS のパスを特定する (deobfuscate.py と同じ手口)
+    # 1. /load を叩いて静的 JS のパスを探します (deobfuscate.py と同じ手口)
     js_url = None
     try:
         r = requests.get(base_url + "/load", params={
@@ -111,8 +111,8 @@ def refresh(base_url: str = "https://gcaptcha4.geetest.com",
     except Exception:
         return as_dict()
 
-    # 2. 難読化された文字列テーブルを復号する (GeekedTest の手法)。
-    #    `}}}( "..." )}` 形式 + XOR 鍵。ベストエフォート (失敗しても初期値を維持)。
+    # 2. 難読化された文字列テーブルをほどきます (GeekedTest の手法)。
+    #    `}}}( "..." )}` 形式 + XOR 鍵。ベストエフォートです (ダメなら初期値のまま)。
     try:
         tbl_m = re.search(r"\}\}\)\(\"(.*?)\"\)\}", js, re.S)
         if tbl_m:
@@ -124,7 +124,7 @@ def refresh(base_url: str = "https://gcaptcha4.geetest.com",
     except Exception:
         pass
 
-    # 3. ['_lib']= / ['_abo']= の代入と deviceId を抽出する
+    # 3. ['_lib']= / ['_abo']= の代入と deviceId を抜き出します
     try:
         lib_m = re.search(r"\['_lib'\]\s*=\s*(\{[^}]+\})", js)
         abo_m = re.search(r"\['_abo'\]\s*=\s*(\{[^}]+\})", js)
@@ -145,5 +145,5 @@ def refresh(base_url: str = "https://gcaptcha4.geetest.com",
     return as_dict()
 
 
-# インポート時にディスクキャッシュを読む (軽量・失敗なし)
+# インポート時にディスクキャッシュを読んでおきます (軽いし失敗しません)
 load_cache()

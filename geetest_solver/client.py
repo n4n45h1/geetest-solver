@@ -1,17 +1,17 @@
-"""GeeTest v4 統合 (同期+非同期)。
+"""GeeTest v4 の統合クライアントです (同期+非同期どっちもいけます)。
 
-全体の流れ (全リポジトリ共通):
-  GET {base}/load  -> lot_number/payload/process_token/pow_detail/captcha_type/... を取得
+全体の流れ (どのリポジトリも同じです):
+  GET {base}/load  -> lot_number/payload/process_token/pow_detail/captcha_type/... をもらう
   static.geetest.com から素材を落とす -> 解く -> userresponse+passtime+track を作る
-  GET {base}/verify?w=...(&td=...) -> data.seccode を受け取る
+  GET {base}/verify?w=...(&td=...) -> data.seccode が返ってくる
 
-改良点:
+うちの工夫ポイント:
 - curl_cffi (chrome124 指紋) + requests フォールバック
-  (wulu は wreq 必須、Geeked は chrome124 固定)
-- track はデフォルトON、td+td_sign を自動付与
-- pt はサーバ指定に従い、失敗時は 1->0 に降格
-- 全タイプ対応のソルバーレジストリ (wulu の発想を nine/icon まで拡張)
-- 指数バックオフ付きリトライ (wulu は固定回数のみ)
+  (wulu は wreq 必須、Geeked は chrome124 固定でした)
+- track はデフォルトON、td+td_sign は自動で付けます
+- pt はサーバの指定に従って、ダメなら 1->0 に落とします
+- 全タイプ対応のソルバーレジストリ (wulu のアイデアを nine/icon まで広げました)
+- 指数バックオフつきリトライ (wulu は固定回数のみでした)
 """
 from __future__ import annotations
 
@@ -38,17 +38,17 @@ VERIFY_PATH = "/verify"
 
 
 class VerifyError(RuntimeError):
-    """リトライを使い切っても通らなかったときの例外。"""
+    """リトライを使い切っても通らなかったときの例外です。"""
     pass
 
 
 def _callback() -> str:
-    """JSONP コールバック名 (`geetest_<ミリ秒>`)。"""
+    """JSONP コールバック名です (`geetest_<ミリ秒>`)。"""
     return f"geetest_{int(time.time() * 1000)}"
 
 
 def _unwrap_jsonp(text: str) -> dict:
-    """`geetest_123({...})` を剥がして辞書化する。"""
+    """`geetest_123({...})` を剥がして辞書にします。"""
     t = text.strip()
     if "(" in t:
         t = t[t.index("(") + 1: t.rindex(")")]
@@ -56,8 +56,8 @@ def _unwrap_jsonp(text: str) -> dict:
 
 
 def _make_session(proxy=None, headers=None, timeout=20):
-    """HTTP セッションを作る。curl_cffi (TLS 指紋付き) を優先し、
-    無ければ requests にフォールバックする。"""
+    """HTTP セッションを作ります。curl_cffi (TLS 指紋つき) を優先して、
+    なければ requests にフォールバックします。"""
     hdrs = {"Accept": "*/*", "Referer": "https://www.geetest.com/",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
             "sec-ch-ua-mobile": "?0"}
@@ -84,21 +84,21 @@ def _make_session(proxy=None, headers=None, timeout=20):
 
 
 def _http_get(session, url, params):
-    """GET してテキストを返す (curl_cffi / requests 両対応)。"""
+    """GET してテキストで返します (curl_cffi / requests どっちもOK)。"""
     to = getattr(session, "_gt_timeout", 20)
     r = session.get(url, params=params, timeout=to)
     return r.text if hasattr(r, "text") else r.content.decode()
 
 
 def _http_get_bytes(session, url):
-    """GET してバイト列を返す (画像素材用)。"""
+    """GET してバイト列で返します (画像素材用)。"""
     to = getattr(session, "_gt_timeout", 20)
     r = session.get(url, timeout=to)
     return r.content if hasattr(r, "content") else bytes(r)
 
 
 class GeetestSolver:
-    """改良ソルバーの本体。``Geeked(captcha_id, risk_type).solve()`` と互換。"""
+    """改良ソルバーの本体です。``Geeked(captcha_id, risk_type).solve()`` と同じ感覚で使えます。"""
 
     BASE_URL = "https://gcaptcha4.geetest.com"
     IMG_BASE = "https://static.geetest.com"
@@ -120,10 +120,10 @@ class GeetestSolver:
             self.BASE_URL = base_url
         self.session = session or _make_session(proxy, headers, timeout)
 
-    # ---- ソルバーレジストリ (wulu の register_solver を拡張) ----
+    # ---- ソルバーレジストリ (wulu の register_solver を拡張したもの) ----
     @classmethod
     def register_solver(cls, risk, fn=None):
-        """指定タイプ用の自作ソルバーを登録する。
+        """指定タイプ用の自作ソルバーを登録できます。
 
         直接呼び出し::
 
@@ -141,30 +141,30 @@ class GeetestSolver:
 
     # ---- プロトコル ----
     def load(self) -> dict:
-        """`/load` を叩いてチャレンジ情報 (lot_number 等) を取得する。"""
+        """`/load` を叩いてチャレンジ情報 (lot_number とか) をもらってきます。"""
         params = {"callback": _callback(), "captcha_id": self.captcha_id,
                   "challenge": str(uuid.uuid4()), "client_type": self.client_type,
                   "risk_type": self.risk_type, "lang": self.lang}
         try:
             data = _unwrap_jsonp(_http_get(self.session, self.BASE_URL + LOAD_PATH, params))
         except Exception as e:
-            raise RuntimeError(f"load に失敗: {e}") from e
+            raise RuntimeError(f"load に失敗しました: {e}") from e
         d = data.get("data")
         if not isinstance(d, dict):
-            raise RuntimeError(f"load の応答が不正: {str(data)[:200]}")
+            raise RuntimeError(f"load の応答が変です: {str(data)[:200]}")
         return d
 
     async def aload(self) -> dict:
-        """load の非同期版 (中身は同じ同期処理)。"""
+        """load の非同期版です (中身はおんなじ同期処理)。"""
         return self.load()
 
     def _resource(self, path: str) -> bytes:
-        """static.geetest.com から画像素材を落とす。"""
+        """static.geetest.com から画像素材を落としてきます。"""
         sep = "" if path.startswith("/") else "/"
         return _http_get_bytes(self.session, self.IMG_BASE + sep + path)
 
     def generate_w(self, data: dict, ans: dict) -> str:
-        """verify 用の `w` パラメータを組み立てる (PoW + abo + 解答 + 暗号化)。"""
+        """verify 用の `w` パラメータを組み立てます (PoW + abo + 解答 + 暗号化)。"""
         lot = data["lot_number"]
         payload = {**generate_pow(lot, data.get("captcha_id", self.captcha_id),
                                   **data["pow_detail"]),
@@ -183,7 +183,7 @@ class GeetestSolver:
         try:
             return build_w(blob, pt)
         except RuntimeError:
-            if pt == 2:  # smcryptopy が無い -> pt=1 に降格
+            if pt == 2:  # smcryptopy がない -> pt=1 に落とします
                 return build_w(blob, 1)
             raise
         except Exception:
@@ -193,13 +193,13 @@ class GeetestSolver:
 
     # ---- 求解 ----
     def auto_solve(self, data: dict) -> dict:
-        """captcha_type に応じて解き、userresponse/passtime/track を返す。"""
+        """captcha_type を見て解いて、userresponse/passtime/track を返します。"""
         ct = data.get("captcha_type", self.risk_type)
         if ct in self._solvers:
             return self._solvers[ct](data, self)
         ans: dict = {}
         if ct == "ai":
-            pass  # ai は無音検証。解答不要
+            pass  # ai は無音検証なので解答いらずです
         elif ct == "slide":
             data["bg"] = self._resource(data["bg"]) if isinstance(data.get("bg"), str) else data["bg"]
             data["slice"] = self._resource(data["slice"]) if isinstance(data.get("slice"), str) else data["slice"]
@@ -214,8 +214,8 @@ class GeetestSolver:
             data["imgs"] = self._resource(data["imgs"]) if isinstance(data.get("imgs"), str) else data["imgs"]
             data["ques"] = [self._resource(u) if isinstance(u, str) else u for u in data["ques"]]
             clicks = solve_icon_clicks(data["imgs"], data["ques"])
-            # icon の線路形式 (GeekedTest + syncrain。live 検証済み):
-            # 画像ピクセル座標 x*33 / y*49 (wulu 想定の percent*10000 ではない)
+            # icon の線路形式 (GeekedTest + syncrain。live で確かめました):
+            # 画像ピクセル座標 x*33 / y*49 です (wulu 想定の percent*10000 じゃないので注意)
             try:
                 from PIL import Image
                 import io as _io
@@ -240,7 +240,7 @@ class GeetestSolver:
         elif ct == "match":
             cells = solve_match(data["ques"])
             if cells is None:
-                raise NotImplementedError("match: 交換手が見つからない")
+                raise NotImplementedError("match: 交換手が見つかりませんでした")
             ans["userresponse"] = [list(c) for c in cells]
             if self.track_enable:
                 ans["track"], ans["passtime"] = gen_match_track(cells)
@@ -251,7 +251,7 @@ class GeetestSolver:
             if cells is None:
                 cells = solve_gobang(data["ques"])
             if cells is None:
-                raise NotImplementedError("winlinze: 勝ち手が見つからない")
+                raise NotImplementedError("winlinze: 勝ち手が見つかりませんでした")
             ans["userresponse"] = [list(c) for c in cells]
             if self.track_enable:
                 ans["track"], ans["passtime"] = gen_winlinze_track(cells)
@@ -261,12 +261,12 @@ class GeetestSolver:
             ans["userresponse"] = []
             ans["passtime"] = random.randint(1000, 2000)
         else:
-            raise NotImplementedError(f"captcha_type {ct!r} は未対応 "
+            raise NotImplementedError(f"captcha_type {ct!r} は未対応です "
                                       f"(register_solver で自作を差し込めます)")
         return ans
 
     def verify(self, data: dict) -> dict:
-        """解答を作って `/verify` に投げる。応答 JSON をそのまま返す。"""
+        """解答を作って `/verify` に投げます。応答 JSON をそのまま返します。"""
         data.setdefault("captcha_id", self.captcha_id)
         ans = self.auto_solve(data)
         track_b64 = track_zip(ans["track"]) if ans.get("track") else None
@@ -285,14 +285,14 @@ class GeetestSolver:
         try:
             return _unwrap_jsonp(_http_get(self.session, self.BASE_URL + VERIFY_PATH, q))
         except Exception as e:
-            raise RuntimeError(f"verify に失敗: {e}") from e
+            raise RuntimeError(f"verify に失敗しました: {e}") from e
 
     async def averify(self, data: dict) -> dict:
-        """verify の非同期版 (中身は同じ同期処理)。"""
+        """verify の非同期版です (中身はおんなじ同期処理)。"""
         return self.verify(data)
 
     def solve(self, retry: int = 3, backoff: float = 1.5) -> dict:
-        """load->verify をリトライ付きで一気通貫。成功時は seccode 辞書を返す。
+        """load->verify をリトライつきで一気通貫します。成功したら seccode 辞書が返ります。
 
         Geeked 互換の戻り値: {lot_number, pass_token, gen_time, captcha_output}
         """
@@ -305,17 +305,17 @@ class GeetestSolver:
                 return d.get("seccode", d)
             last = resp
             if attempt < retry - 1:
-                # 指数バックオフ + ジッタで少し待ってから次へ
+                # 指数バックオフ + ジッタでちょっと待って次へ
                 time.sleep(backoff * (attempt + 1) * random.uniform(0.7, 1.3))
-        raise VerifyError(f"{retry} 回試して通らなかった: {str(last)[:300]}")
+        raise VerifyError(f"{retry} 回やってみたけど通りませんでした: {str(last)[:300]}")
 
     async def asolve(self, retry: int = 3, backoff: float = 1.5) -> dict:
-        """solve の非同期版 (中身は同じ同期処理)。"""
+        """solve の非同期版です (中身はおんなじ同期処理)。"""
         return self.solve(retry, backoff)
 
-    # wulu 流の呼び名
+    # wulu 流の呼び名です
     resolve = solve
 
 
-# Geeked 流の呼び名
+# Geeked 流の呼び名です
 Geeked = GeetestSolver
