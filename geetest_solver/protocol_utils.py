@@ -1,15 +1,16 @@
-"""lotParser + PoW です (5リポジトリ共通の線路ロジックをここにまとめました)。"""
+"""Protocol helper: lot parser と PoW。"""
+
 from __future__ import annotations
 
 import hashlib
 import uuid
 
-# PoW 難易度の余りビットに対する16進しきい値です (JS と同じ対応表)
+# PoW threshold table
 _THRESHOLDS = {0: "f", 1: "7", 2: "3", 3: "1"}
 _HASH_FN = {"md5": hashlib.md5, "sha1": hashlib.sha1, "sha256": hashlib.sha256}
 
 
-# ---------- lotParser (Geeked の LotParser.get_dict / wulu の parse_abo_pair) ----------
+# ---------- lot parser ----------
 def _parse_lot_string(pattern: str) -> list:
     """`n[5:7]+n[7:9]` みたいなパターンをインデックス範囲のリストにほぐします。"""
     result = []
@@ -53,7 +54,7 @@ def parse_abo_pair(key: str, value: str, lot_number: str) -> dict:
     return obj
 
 
-# ---------- PoW (Proof of Work) ----------
+# ---------- PoW ----------
 def generate_pow(lot_number: str, captcha_id: str, *,
                  hashfunc: str = "md5", version: str = "1",
                  bits: int = 10, datetime: str = "",
