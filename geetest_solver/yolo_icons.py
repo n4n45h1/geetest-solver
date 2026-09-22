@@ -70,7 +70,6 @@ def detect_icons(grid_bytes: bytes, conf: float = 0.35,
         import cv2
         import numpy as np
         # predict 前に image として decode する
-        
         img = cv2.imdecode(np.frombuffer(grid_bytes, dtype="uint8"),
                            cv2.IMREAD_COLOR)
         if img is None:
