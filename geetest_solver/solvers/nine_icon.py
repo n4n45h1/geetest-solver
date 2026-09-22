@@ -1,14 +1,11 @@
-"""nine/icon/word ソルバーです:ヒューリスティック + ONNX フック。
+"""nine / icon / word の画像系 solver。
 
-hshinosa は非公開の SigLIP ONNX モデル (~9MB、同梱できません) を使ってます。
-Geeked は外部の ddddocr サーバが要ります。うちは依存なしで動く
-ヒューリスティック (プロンプトとのセル別テンプレマッチ) を内蔵しつつ、
-任意の ONNX/自作モデルを差せるフックを付けてます (hshinosa 式の
-マージン判定リトライつき:上位3件のマージン、しきい値 2.2、低信頼度でもベストゲス)。
+軽い heuristic をデフォルトにして、必要なら外部 matcher を差し込めます。
 """
+
 from __future__ import annotations
 
-_ONNX_MATCHER = None  # register_onnx_matcher() で設定します。未設定ならヒューリスティックです
+_ONNX_MATCHER = None  # optional custom matcher
 
 
 def register_onnx_matcher(fn):
@@ -50,7 +47,7 @@ def solve_nine_heuristic(imgs_bytes: bytes, ques_bytes_list: list[bytes],
                 tmpl = cv2.resize(prompt, (cell.shape[1], cell.shape[0]))
                 res = cv2.matchTemplate(cell, tmpl, cv2.TM_CCOEFF_NORMED)
                 scores.append((float(res.max()), (i + 1, j + 1)))
-        # 縮退ケース (ベタ塗りで NCC が全同点) -> SAD 順位付けにフォールスルーします
+        # NCC が全部同点なら SAD fallback
         vals = [s for s, _ in scores]
         if max(vals) - min(vals) < 1e-6:
             raise ValueError("tie")
@@ -58,7 +55,7 @@ def solve_nine_heuristic(imgs_bytes: bytes, ques_bytes_list: list[bytes],
         return [pos for _, pos in scores[:nine_nums]]
     except Exception:
         pass
-    # PIL フォールバック:差分絶対値和 (SAD) で順位付けします
+    # PIL fallback: SAD
     from PIL import Image
     import io
     grid, prompts = _load_images(imgs_bytes, ques_bytes_list)
@@ -94,7 +91,7 @@ def solve_nine(imgs_bytes: bytes, ques_bytes_list: list[bytes],
             cells = [((i // 3) + 1, (i % 3) + 1) for i in sorted(top)]
             if margin >= margin_threshold:
                 return cells
-            # 低信頼度:それでもベストゲスを返します
+            # low confidence でも best guess を返す
             return cells
         except Exception:
             pass
@@ -119,7 +116,7 @@ def segment_icon_boxes(grid_bgr, min_area: int = 150,
     colored = (np.abs(H - bg) > 25) & (S > 60)
     extreme = (S < 50) & ((V < 60) | (V > 200))
     mask = (colored | extreme).astype("uint8")
-    # オープニングでアイコンと背景の細いテクスチャ橋を切ります
+    # opening で細い texture bridge を落とす
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,
                             np.ones((5, 5), "uint8"))
     n, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
@@ -134,7 +131,7 @@ def segment_icon_boxes(grid_bgr, min_area: int = 150,
         if 0.15 > fill or fill > 0.95:
             continue
         boxes.append([x, y, x + w, y + h])
-    # 明らかな破片だけ結合します:小さい方の 30% 超が重なったら同一アイコンとみなします
+    # overlap が大きい box はまとめる
     merged = []
     for b in boxes:
         for m in merged:
@@ -149,8 +146,8 @@ def segment_icon_boxes(grid_bgr, min_area: int = 150,
                 break
         else:
             merged.append(b)
-    # アイコンを収容できない小箱は捨てて、テクスチャ橋で合体した巨大箱は
-    # 分割します (アイコンは ~30-60px 想定です)
+    # 小さすぎる box は捨て、大きすぎる box は分割
+    # icon はだいたい 30-60px 想定
     final = []
     for x1, y1, x2, y2 in merged:
         w, h = x2 - x1, y2 - y1
@@ -376,7 +373,7 @@ def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
         H, W = grid.shape[:2]
         bgr = cv2.cvtColor(grid, cv2.COLOR_RGB2BGR)
         boxes = segment_icon_boxes(bgr)
-        # YOLO 箱があれば合流します (破片の結合ルールは共通です)
+        # YOLO box があれば候補に追加
         try:
             from ..yolo_icons import detect_icons
             for b in detect_icons(imgs_bytes):
@@ -396,7 +393,7 @@ def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             pass
         if not boxes:
             return None
-        # 割り付け問題を絞ります。アイコンは大きいブロブ側にあるはずなので
+        # 候補が多すぎるときは大きい box を優先
         if len(boxes) > 8:
             boxes = sorted(boxes, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]),
                            reverse=True)[:8]
@@ -426,7 +423,7 @@ def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             ri, ci = zip(*sorted(
                 ((i, max(range(m), key=lambda j: mat[i, j])) for i in range(n)),
                 key=lambda t: -mat[t[0], t[1]]))
-        # 品質ゲート:縮退行列 (全ゼロ列とか) は後段のバックエンドに譲ります
+        # score が全部死んでいたら次の backend へ
         if float(mat[ri, ci].sum()) <= 0:
             return None
         out = []
@@ -434,7 +431,7 @@ def solve_icon_segment(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             i, j = int(i), int(j)
             x1, y1, x2, y2 = boxes[j]
             crop = full[max(0, y1 - 2):y2 + 2, max(0, x1 - 2):x2 + 2]
-            # クリック位置 = 箱の真ん中じゃなく best-fit シルエットの真ん中です
+            # click は best-fit silhouette の中心を使う
             s_ = sils[i]
             dy, dx, sc = fits[(i, j)]
             nh = max(1, int(s_.shape[0] * sc))
@@ -488,7 +485,7 @@ def solve_icon_clicks(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             pt = (round(min(1.0, max(0.0, cx)), 4),
                   round(min(1.0, max(0.0, cy)), 4))
             out.append(pt)
-        # 近所でかぶった点は順序キープで間引きます
+        # 近すぎる点は順序を保ったまま dedupe
         uniq = []
         for p in out:
             if not any(abs(p[0] - u[0]) < 0.03 and abs(p[1] - u[1]) < 0.03
@@ -498,7 +495,7 @@ def solve_icon_clicks(imgs_bytes: bytes, ques_bytes_list: list[bytes]):
             return uniq
     except Exception:
         pass
-    # フォールバック:昔ながらの nine セル近似 (API の体裁だけ保ちます)
+    # last fallback: 3x3 cell approximation
     out = []
     for q in ques_bytes_list:
         r, c = solve_nine_heuristic(imgs_bytes, [q], 1)[0]
