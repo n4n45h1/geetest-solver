@@ -1,4 +1,4 @@
-"""オフラインテストです — ネットも captcha_id もいりません。"""
+"""Offline tests. network / captcha_id は不要。"""
 import io
 import json
 
@@ -13,7 +13,7 @@ def _make_slide_images(x0=120, seed=7):
     rng = np.random.RandomState(seed)
     bg = (rng.rand(150, 300, 3) * 255).astype("uint8")
     bg = cv2.GaussianBlur(bg, (5, 5), 0)
-    # 40x40 ピース (透明ふちつき)
+    # 40x40 piece with transparent padding
     sl = np.zeros((40, 40, 4), dtype="uint8")
     sl[4:-4, 4:-4, :3] = bg[50:82, x0:x0 + 32].copy()
     sl[4:-4, 4:-4, 3] = 255
@@ -51,7 +51,7 @@ def test_slide_hybrid():
     from geetest_solver.solvers import solve_slide, solve_slide_hybrid
     bg_b, sl_b, x0 = imgs
     x, conf, method = solve_slide_hybrid(bg_b, sl_b, 50)
-    # slice 側に 4px の透明ふちがあるので、テンプレ x = x0-4 が正解です
+    # slice has 4px transparent padding
     assert abs(x - (x0 - 4)) <= 3, f"got {x} want ~{x0-4} ({method} {conf:.3f})"
     assert solve_slide(bg_b, sl_b, 50) == x
     print(f"slide OK: x={x} (truth {x0}) conf={conf:.3f} method={method}")
@@ -60,16 +60,16 @@ def test_slide_hybrid():
 def test_boards():
     """盤面ソルバー (gobang/match/winlinze) のテストです。"""
     from geetest_solver.solvers import solve_gobang, solve_match, solve_winlinze
-    # gobang: 4つ並び + 空きマス
+    # gobang: 4 pieces + 1 empty
     b = [[0] * 5 for _ in range(5)]
     b[2] = [1, 1, 1, 1, 0]
     r = solve_gobang(b)
     assert r and r[1] == [2, 4], r
-    # match: 解ける/解けないどっちもありうる (None 許容)
+    # match may return None for this fixture
     q = [1, 2, 1, 2, 1, 2, 0, 0, 0]
     m = solve_match(q)
     assert m is None or len(m) == 2
-    # winlinze: ほぼ完成行 + 動かせる余り駒があれば勝ち手ありのはず
+    # nearly-complete line with a movable piece
     w = [1]*4 + [0] + [1] + [0]*19
     assert solve_winlinze(w) is not None
     print("boards OK")
@@ -118,14 +118,14 @@ def test_icon_positions():
     from geetest_solver.solvers import find_prompt_in_grid, solve_icon_clicks
     rng = np.random.RandomState(3)
     grid = (rng.rand(200, 300) * 255).astype("uint8")
-    # わざと既知の中心に黒円盤を貼ります
+    # put a black disc at a known position
     yy, xx = np.ogrid[:200, :300]
     disc = (xx - 200) ** 2 + (yy - 100) ** 2 <= 15 ** 2
     grid[disc] = 0
     buf = io.BytesIO()
     Image.fromarray(grid).convert("RGB").save(buf, format="PNG")
     grid_b = buf.getvalue()
-    # プロンプト:真ん中に黒円の 48x48 RGBA
+    # 48x48 RGBA prompt with a centered disc
     p = np.zeros((48, 48, 4), dtype="uint8")
     py, px = np.ogrid[:48, :48]
     m = (px - 24) ** 2 + (py - 24) ** 2 <= 15 ** 2
