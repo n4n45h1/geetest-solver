@@ -21,10 +21,7 @@ def _lines(board):
 
 
 def _to_grid(ques, n: int):
-    """flat / 2D のどちらも 2D grid に揃えます。
-
-    
-    """
+    """flat / 2D のどちらも 2D grid に揃えます。"""
     if isinstance(ques, (list, tuple)) and ques and isinstance(ques[0], (list, tuple)):
         return [list(r) for r in ques]
     flat = list(ques)
