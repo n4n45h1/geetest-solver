@@ -1,12 +1,8 @@
-"""人間らしいポインタの軌跡を作ります (wulu007/hshinosa の track/* を移植。MIT ライセンス)。
+"""Pointer track generation.
 
-参考元からの改良ポイント:
-- デフォルトONです (wulu はデフォルトOFF、Geeked にはそもそもなし)。
-  td 必須のサイトがあるので。
-- 入口は統一しました:gen_slide_track / gen_click_track / gen_nine_track /
-  gen_match_track / gen_winlinze_track + track_zip / track_unzip
-- ベジェ制御点 + ease(3t^2-2t^3) + ジッタ + 17ms サンプリング (参考元と同じ流儀です)
+slide / click / nine / match / winlinze の track をここでまとめて作ります。
 """
+
 from __future__ import annotations
 
 import base64
@@ -17,7 +13,7 @@ import random
 import time
 import zlib
 
-# イベント種別です (JS と同じ番号です)
+# event types
 START, MOVE, END, DOWN = 0, 1, 2, 3
 
 
@@ -31,9 +27,9 @@ def _round4(pt):
 
 
 def _timestamps(duration: int, base: int = 0):
-    """base から base+duration まで、人間らしく間隔をあけて時刻を刻みます。
+    """base から base+duration まで timestamp を作ります。
 
-    17ms 前後のランダム間隔でサンプリングします (実測のクセの真似っこ)。
+    17ms 前後をベースに少しだけ間隔をばらします。
     """
     if duration <= 0:
         yield base
@@ -54,8 +50,8 @@ def _timestamps(duration: int, base: int = 0):
 def _controls(p0, p1):
     """3次ベジェの制御点2つを始終点の間にサンプリングします。
 
-    区間の 30%-70% あたりに置いて、ランダムな横ずれを足して手書き感を出します。
-    距離がほぼ0なら直線に潰しちゃいます。
+    区間の 30%-70% あたりに置いて、少しランダムにずらします。
+    距離がほぼ 0 ならそのまま直線扱いです。
     """
     x0, y0 = p0
     x1, y1 = p1
@@ -80,10 +76,10 @@ def _bez(t, p0, p1, c1, c2):
 
 
 def _segment(p0, p1, dur: int, base: int = 0):
-    """p0 -> p1 へ dur ミリ秒かけてぬるっと移動するイベント列を作ります。
+    """p0 -> p1 の MOVE event を作ります。
 
     時刻は [0,1] に直してから ease (3t^2-2t^3) で緩急をつけて、
-    座標にちょびっとジッタを載せて [0,1] に収めます。
+    座標に少し jitter を足して [0,1] に収めます。
     """
     times = list(_timestamps(dur, base))
     span = times[-1] - times[0]
@@ -100,7 +96,7 @@ def _segment(p0, p1, dur: int, base: int = 0):
 
 
 class TrackBuilder:
-    """軌跡セグメントを継ぎ足していく流暢ビルダーです (wulu の TrackBuilder を簡単にしたもの)。"""
+    """track event を順番に積んでいく builder。"""
 
     def __init__(self, start):
         self.cur = start
@@ -111,7 +107,7 @@ class TrackBuilder:
     def move_to(self, x, y, duration: int):
         """(x, y) へ duration ミリ秒で移動する区間を足します。
 
-        継ぎ目は前区間の終点とかぶるので落とします。
+        前区間の終点と重なる先頭 event は落とします。
         """
         seg = _segment(self.cur, (x, y), duration, self.events[-1][0])
         self.events.extend(seg[1:])
@@ -120,22 +116,22 @@ class TrackBuilder:
         return self
 
     def down(self):
-        """今いるところを押下 (DOWN) マークします。"""
+        """現在位置を DOWN にします。"""
         e = self.events[-1]
         self.events[-1] = (e[0], e[1], e[2], DOWN)
         return self
 
     def end(self):
-        """今いるところを最終 END マークします。"""
+        """現在位置を END にします。"""
         e = self.events[-1]
         self.events[-1] = (e[0], e[1], e[2], END)
         self.end_point = self.cur
         return self
 
     def click(self, delay: int | None = None):
-        """押下 (DOWN) して delay ミリ秒後にぱっと離し (END) ます。
+        """DOWN のあと delay ms で END を追加します。
 
-        自動送信クリックの末尾パターン:おんなじ位置の DOWN 直後に END、
+        同じ位置で DOWN -> END、
         間に移動なし、です。
         """
         delay = random.randint(80, 120) if delay is None else delay
@@ -146,13 +142,13 @@ class TrackBuilder:
         return self
 
     def build(self, max_points: int = 150):
-        """イベント列を確定します。多すぎたら間引きます (直近優先)。"""
+        """event 数を上限に収めて返します。"""
         if self.end_point is None or self.dur <= 0:
             raise ValueError("build 前に start/end/duration を決めてくださいね")
         if len(self.events) <= max_points:
             return self.events
-        # MOVE 以外 (クリックとかの大事な点) は残して、MOVE だけ間引きます。
-        # 終盤の点を優先して、クリック前後の粒度を保ちます。
+        # click 系 event は残して MOVE だけ間引く
+        # 終盤の MOVE を優先
         moves = [p for p in self.events if p[3] == MOVE]
         rest = [p for p in self.events if p[3] != MOVE]
         need = max_points - len(rest) - 1
@@ -286,7 +282,7 @@ def gen_nine_track(cells, cols: int = 3,
     return _payload(ev, w, h), ev[-1][0]
 
 
-# ---------- fflate 互換 gzip (wulu の track/compress.py が元ネタ) ----------
+# ---------- gzip / base64 ----------
 def track_zip(track, mtime: int | None = None) -> str:
     """軌跡を gg4.js とおんなじ方式で圧縮します:fflate の gzipSync + URL セーフ base64。
 
