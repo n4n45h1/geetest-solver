@@ -1,11 +1,8 @@
-"""ハイブリッドなスライド距離ソルバーです。
+"""Slide image matcher.
 
-どのリポジトリも単独ではやってない組み合わせです:
-- A: MORPH_GRADIENT + TM_CCOEFF_NORMED + ypos 帯切り出し + 透過処理 (wulu007)
-- B: Canny(100,200) + TM_CCOEFF_NORMED (GeekedTest / aster-go の Datadome ソルバー)
-- 信頼度勝負:両方走らせて maxVal が高い方を採用します。ypos 帯で外したら全画像にフォールバック。
-  戻り値は背景画像座標系の setLeft (px) です。
+gradient と Canny の両方を試して、スコアが高い方を使います。
 """
+
 from __future__ import annotations
 
 try:
@@ -28,9 +25,9 @@ def _decode(bg_bytes: bytes, slice_bytes: bytes):
 
 
 def _slice_gray(sl) -> object:
-    """ピースをグレースケール化します。透過部分は黒で埋めます。
+    """ピースを grayscale 化して、透過部分は 0 にします。
 
-    wulu の工夫です。aster は PIL の bbox 切り出しで同じことをしてました。
+    
     """
     import cv2 as _cv2
     if len(sl.shape) == 3 and sl.shape[2] == 4:
@@ -44,14 +41,14 @@ def _slice_gray(sl) -> object:
 
 
 def _match_gradient(bg_gray, sl_gray, ypos: int):
-    """方式 A (wulu 流):モルフォロジー勾配で輪郭を立てて照合します。"""
+    """MORPH_GRADIENT で template matching。"""
     import cv2 as _cv2
     kernel = _cv2.getStructuringElement(_cv2.MORPH_RECT, (3, 3))
     mg_bg = _cv2.morphologyEx(bg_gray, _cv2.MORPH_GRADIENT, kernel)
     mg_sl = _cv2.morphologyEx(sl_gray, _cv2.MORPH_GRADIENT, kernel)
     h = mg_sl.shape[0]
     if ypos > 0 and ypos + h <= mg_bg.shape[0]:
-        # ypos が分かれば帯だけ探します (速いし誤検出も減ります)
+        # ypos が取れるならその帯を優先
         search = mg_bg[ypos:ypos + h, :]
         y_off = ypos
     else:
@@ -63,7 +60,7 @@ def _match_gradient(bg_gray, sl_gray, ypos: int):
 
 
 def _match_canny(bg_gray, sl_gray, ypos: int):
-    """方式 B (Geeked/aster 流):Canny エッジ化してから照合します。"""
+    """Canny edge で template matching。"""
     import cv2 as _cv2
     h = sl_gray.shape[0]
     margin = 10
@@ -97,7 +94,7 @@ def solve_slide_hybrid(bg_bytes: bytes, slice_bytes: bytes,
         bx, _, bc = _match_canny(bg_gray, sl_gray, ypos)
     except Exception:
         bx, bc = ax, -1.0
-    # 勾配方式の信頼度が低かったら全画像で探し直すフォールバックです
+    # gradient が弱いときだけ全体検索でもう一度
     if ac < 0.15:
         try:
             res = _cv2.matchTemplate(
@@ -117,7 +114,7 @@ def solve_slide_hybrid(bg_bytes: bytes, slice_bytes: bytes,
 
 
 def solve_slide(bg_bytes: bytes, slice_bytes: bytes, ypos: int = 0) -> int:
-    """setLeft (px) を返すメイン API です。ハイブリッドの勝者を採用します。"""
+    """setLeft (px) を返す public API。"""
     x, _, _ = solve_slide_hybrid(bg_bytes, slice_bytes, ypos)
     return x
 
