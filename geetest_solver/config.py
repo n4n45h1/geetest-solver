@@ -1,12 +1,9 @@
-"""プロトコル定数の置き場です。ライブ更新できます。
+"""GeeTest 側の protocol 定数まわり。
 
-GeekedTest は ``mapping``/``abo`` を直書きしていたので数週間で腐っちゃいます。
-wulu007 は最新値を保ってますが ``config.py`` への直書きです。
-
-うちは既知の正しい初期値 (2026 時点で wulu007 と同期済み) を持ちつつ、
-ライブの ``gcaptcha4.js`` から ``refresh()`` で更新できます
-(Geeked の deobfuscate.py のアイデアを自動化 + ディスクキャッシュ化したものです)。
+既知値を持ちつつ、必要なら runtime で更新してローカルにキャッシュします。
+更新に失敗した場合は、今ある値をそのまま使います。
 """
+
 from __future__ import annotations
 
 import json
@@ -14,7 +11,7 @@ import os
 import re
 import time
 
-# ---- 既知の正しい初期値 (wulu007 の値。variablepy フォークとも照合済み) ----
+# known-good defaults
 BIHT = "1426265548"
 LIB_KEY = "dQFB"
 LIB_VAL = "BoHp"
@@ -54,7 +51,7 @@ def _apply(d: dict) -> None:
 
 
 def load_cache() -> bool:
-    """ディスクキャッシュが有効なら読み込みます。ダメでも False を返すだけです。"""
+    """有効な cache があれば読み込みます。"""
     try:
         if not os.path.exists(_CACHE_FILE):
             return False
@@ -69,7 +66,7 @@ def load_cache() -> bool:
 
 
 def save_cache() -> None:
-    """今の定数をディスクに保存します (失敗しても気にしません)。"""
+    """現在の定数を cache に保存します。"""
     try:
         d = as_dict()
         d["_ts"] = time.time()
@@ -88,7 +85,7 @@ def refresh(base_url: str = "https://gcaptcha4.geetest.com",
     """
     import requests
 
-    # 1. /load を叩いて静的 JS のパスを探します (deobfuscate.py と同じ手口)
+    # 1. /load から gcaptcha4.js の URL を探す
     js_url = None
     try:
         r = requests.get(base_url + "/load", params={
@@ -111,7 +108,7 @@ def refresh(base_url: str = "https://gcaptcha4.geetest.com",
     except Exception:
         return as_dict()
 
-    # 2. 難読化された文字列テーブルをほどきます (GeekedTest の手法)。
+    # 2. obfuscated table を拾える範囲で処理する
     #    `}}}( "..." )}` 形式 + XOR 鍵。ベストエフォートです (ダメなら初期値のまま)。
     try:
         tbl_m = re.search(r"\}\}\)\(\"(.*?)\"\)\}", js, re.S)
@@ -124,7 +121,7 @@ def refresh(base_url: str = "https://gcaptcha4.geetest.com",
     except Exception:
         pass
 
-    # 3. ['_lib']= / ['_abo']= の代入と deviceId を抜き出します
+    # 3. _lib / _abo を抽出
     try:
         lib_m = re.search(r"\['_lib'\]\s*=\s*(\{[^}]+\})", js)
         abo_m = re.search(r"\['_abo'\]\s*=\s*(\{[^}]+\})", js)
@@ -145,5 +142,5 @@ def refresh(base_url: str = "https://gcaptcha4.geetest.com",
     return as_dict()
 
 
-# インポート時にディスクキャッシュを読んでおきます (軽いし失敗しません)
+# import 時に有効な cache があれば読み込む
 load_cache()
