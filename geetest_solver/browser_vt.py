@@ -1,20 +1,13 @@
-"""おまけの BrowserVT ヘルパーです (hshinosa/hybrid_vt.py のアイデア)。
+"""Optional Playwright helper.
 
-非ブラウザの TLS 指紋を見抜いて、解けない ``svg_seed`` を返してくる
-バックエンドがあります。そんなときはブラウザが出した verifyType トークンを
-借りちゃうのが手っ取り早いです。``pip install playwright && playwright install chromium`` が要ります。
-
-    from geetest_solver.browser_vt import BrowserVT
-    vt = BrowserVT(signup_url=..., email_selector=..., submit_text=...,
-                   intercept_substring="geeTestForm",
-                   vt_path=("data", "verifyType"), lot_path=("data", "verifyLot"))
-    token, lot = vt.get_vt_for("user@example.com")
+対象ページのレスポンスから verify-related data を拾うための小さい helper です。
 """
+
 from __future__ import annotations
 
 
 class BrowserVT:
-    """ヘッドレス Chrome で対象サイトの verifyType トークンを横取りします。"""
+    """Playwright で対象レスポンスを監視します。"""
 
     def __init__(self, signup_url: str, email_selector: str = 'input[type="email"]',
                  submit_text: str = "Send", intercept_substring: str = "geeTestForm",
@@ -31,20 +24,20 @@ class BrowserVT:
 
     @staticmethod
     def _dig(obj, path):
-        """`{"data": {"verifyType": ...}}` みたいな入れ子をパスで掘ります。"""
+        """nested dict を path でたどります。"""
         for k in path:
             obj = obj[k]
         return obj
 
     def get_vt_for(self, identifier: str) -> tuple[str, str]:
-        """指定の識別子でサイトを操作して、(verifyType, verifyLot) を持ち帰ります。"""
+        """ページを操作して (verifyType, verifyLot) を取得します。"""
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as e:
             raise RuntimeError("playwright が要ります: pip install playwright") from e
         captured: dict = {}
         with sync_playwright() as p:
-            # 自動化検出よけのおまじない付きで起動します
+            # webdriver flag を出さない設定で起動
             browser = p.chromium.launch(headless=self.headless,
                                         args=["--disable-blink-features=AutomationControlled"])
             ctx = browser.new_context()
