@@ -1,7 +1,7 @@
 [project]
 name = "geetest-solver-improved"
 version = "1.0.0"
-description = "Improved GeeTest v4 solver — hybrid of GeekedTest / wulu007/geetest-bypass / Datadome solver / nine-ONNX / variablepy. Pure python, no browser needed."
+description = "GeeTest v4 solver with pluggable image solvers, track generation, and protocol helpers."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
