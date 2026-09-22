@@ -25,10 +25,7 @@ def _decode(bg_bytes: bytes, slice_bytes: bytes):
 
 
 def _slice_gray(sl) -> object:
-    """ピースを grayscale 化して、透過部分は 0 にします。
-
-    
-    """
+    """ピースを grayscale 化して、透過部分は 0 にします。"""
     import cv2 as _cv2
     if len(sl.shape) == 3 and sl.shape[2] == 4:
         alpha = sl[:, :, 3]
