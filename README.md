@@ -263,6 +263,10 @@ PoW、crypto、board solver、track、slide detection あたりをまとめて�
 
 各作者に感謝します。
 
+## License
+
+Apache-2.0. Third-party references and notices are listed in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+
 ## Disclaimer
 
 Research / educational use only.
