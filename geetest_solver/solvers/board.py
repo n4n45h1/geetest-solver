@@ -1,14 +1,13 @@
-"""盤面ソルバーです:五目 (winlinze, 5x5) + マッチ (3x3 スワップ)。
+"""Board puzzle solvers.
 
-Geeked の五目は「n-1 個揃い + 空き1」のラインを探す汎用方式 (n x n) で、
-wulu の winlinze/match は勝敗判定つきの総当たりです。うちでは統一して
-汎用ライン列挙 + 勝敗判定で解きます。
+gobang / winlinze / match をここにまとめています。
 """
+
 from __future__ import annotations
 
 
 def _lines(board):
-    """盤面の全ライン (行・列・斜め2方向) を座標列で列挙します。"""
+    """行・列・斜めの候補 line を列挙します。"""
     n = len(board)
     rows = [[(r, c) for c in range(n)] for r in range(n)]
     cols = [[(r, c) for r in range(n)] for c in range(n)]
@@ -22,9 +21,9 @@ def _lines(board):
 
 
 def _to_grid(ques, n: int):
-    """フラット (n*n) でも 2次元 (n x n) でも受け付けて、2次元のコピーを返します。
+    """flat / 2D のどちらも 2D grid に揃えます。
 
-    公式デモは 2次元で返してくるので両対応が必須です (live で IndexError を踏んだ教訓)。
+    
     """
     if isinstance(ques, (list, tuple)) and ques and isinstance(ques[0], (list, tuple)):
         return [list(r) for r in ques]
@@ -62,7 +61,7 @@ def solve_gobang(board, line_len: int | None = None):
     if not hit:
         return None
     filled, empty = hit
-    # 既存駒の1つを空きマスへ動かします (wulu の winlinze と同じ意味)
+    # 既存の駒を 1 つ空きマスへ動かす
     return [list(filled[0]), list(empty)]
 
 
@@ -112,8 +111,8 @@ def solve_match(ques) -> tuple | None:
             try:
                 if _win_3x3(b, allow_zero):
                     if allow_zero:
-                        # 交換した手が成立ラインに関わってること。
-                        # (前からあるラインに無関係な手を返さないため)
+                        # swap した cell が成立 line に関わっていること
+                        # 既存 line と無関係な手は返さない
                         lines = ([[(i, k) for k in range(3)] for i in range(3)]
                                  + [[(k, i) for k in range(3)] for i in range(3)]
                                  + [[(k, k) for k in range(3)],
