@@ -1,139 +1,271 @@
-# geetest-solver-improved
+# geetest-solver
 
-GeeTest v4 のソルバーです。公開リポジトリを5つ読み比べて、
-いいとこ取り＋自分なりの改良を入れた。(ただパクっただけだけど)
-ブラウザなしで動く純 Python 実装です。
-参考にさせてもらったリポジトリの開発者に感謝します。
+GeeTest v4 を Pure Python で扱うための solver です。
 
-| 参考リポジトリ | もらってきたもの |
-|---|---|
-| [xKiian/GeekedTest](https://github.com/xKiian/GeekedTest) | 基本プロトコル (`load`/`verify`/`w`)、五目ソルバー、`userresponse = left/1.0059466+2` の係数、**deobfuscate のアイデア** (自動化＋キャッシュ化しました) |
-| [wulu007/geetest-bypass](https://github.com/wulu007/geetest-bypass) | 最新の `abo`/`lib` キー、`pt0/1/2`、ベジェ `TrackBuilder` + `track_zip` + `td_sign`、ソルバーレジストリ、タイプ別 passtime |
-| [aster-go/Datadome-GeeTest-Captcha-Solver](https://github.com/aster-go/Datadome-GeeTest-Captcha-Solver) | Canny(100,200)＋テンプレートの画像処理、bbox/透過の扱い |
-| [hshinosa/geetest-solver-nine](https://github.com/hshinosa/geetest-solver-nine) | ONNX マッチャーのIF＋マージン判定リトライ、`BrowserVT` (おまけ)、nine の `userresponse`/軌跡形式 |
-| [variablepy/GeeTest-Solver](https://github.com/variablepy/GeeTest-Solver) | すっきりした分割構成 (challenge/crypto/client) |
-| [syncrain/geetest-solver](https://github.com/syncrain/geetest-solver) (MIT) | icon 座標スケール `x*33/y*49` (live で検証済み)、YOLO `best.pt` の入手先 |
-| [Evil-Bane/Geetest-Solver](https://github.com/Evil-Bane/Geetest-Solver) | ORB＋CLAHE＋極性反転マッチの発想 (試した結果、見送った経緯は後述) |
+既存の実装をいくつか触ってみたら、
 
-## 元リポジトリたちからの改良ポイント
+- repo ごとに対応してる challenge が違う
+- track 周りの実装がバラバラ
+- 定数が古くなると急に死ぬ
+- icon / nine がそれぞれ独自路線
+- ブラウザや外部 solver が必要なものもある
 
-1. **スライド検出** — `MORPH_GRADIENT` (wulu 式) **+** `Canny` (Geeked/aster 式) を信頼度でいい方採用。ypos 帯＋全画像フォールバック付き。どっちかだけだと外すケースがあるので両方走らせます。
-2. **track はデフォルトON** — Geeked には無くて、wulu はデフォルトOFF。`td`+`td_sign` 必須のサイトがあるので、ベジェ＋`ease(3t²-2t³)`＋ジッタ＋17ms サンプリングの fflate 互換 gzip を自動で付けます。
-3. **定数は自動更新** — Geeked の定数は数週間で腐って、手動の `deobfuscate.py` が必要でした。ここでは現行値を内蔵しつつ `refresh()`＋ディスクキャッシュできます (`python -m geetest_solver.deobfuscate`)。
-4. **dddddocr サーバいらず** — Geeked の icon は外部サーバ必須でした。ここでは nine/icon のヒューリスティック内蔵で、`register_onnx_matcher` / `register_solver` で差し替えもできます。
-5. **しぶといクライアント** — 同期＋非同期、`curl_cffi` の TLS 指紋 (ダメなら `requests` にフォールバック)、プロキシ対応、指数バックオフの `solve(retry)`、`pt` 自動＋`1→0` 降格 (pt2 は `smcryptopy` が要ります)。
-6. **依存は軽め** — `requests+numpy+Pillow+pycryptodome` だけで動きます。`opencv-python`＋`curl_cffi` はあると快適 (`pip install -e ".[full]"`)。
+みたいな感じだったので、良さそうな実装を読み比べつつ、使いやすい形にまとめました。
 
-## インストール
+基本は **ブラウザなし** で動かす方針です。
 
-```bash
-pip install -e .
-pip install -e ".[full]"   # おすすめ: opencv + curl_cffi
-pip install -e ".[icon]"    # icon 用 YOLO (torch + ultralytics)
-```
+> [!NOTE]
+> 全部が完璧に解けるわけではないです。特に `icon` はまだ沼です。
 
-## 使い方
+## Features
 
-```python
-from geetest_solver import GeetestSolver
+ざっくりこんな感じです。
 
-solver = GeetestSolver(captcha_id="54088bb07d2df3c46b79f80300b0abbe", risk_type="slide")
-print(solver.solve())  # -> {lot_number, pass_token, gen_time, captcha_output}
-# {'captcha_id': ..., 'lot_number': ..., 'pass_token': ..., 'gen_time': ..., 'captcha_output': ...}
-```
+- GeeTest v4
+- `slide` / `ai` / `match` / `winlinze` / `gobang` / `nine` / `icon` / `word` / `phrase`
+- proxy 対応
+- `curl_cffi` 対応
+- track 生成
+- `pt0 / pt1 / pt2`
+- solver の差し替え
+- protocol 定数の更新・キャッシュ
+- sync API + async wrapper
 
-対応 risk_type: `ai slide match winlinze/gobang nine icon word phrase` (+ レジストリで自作も足せます)。
+### Slide
 
-```python
-# 自作ソルバーの差し込み (wulu 式を全タイプに拡張)
-@GeetestSolver.register_solver("icon")
-def my_icon(data, solver):
-    from geetest_solver.tracks import gen_click_track
-    clicks = [(0.3, 0.4)]  # 規格化 [0,1]
-    track, passtime = gen_click_track(clicks)
-    return {"userresponse": [[3000, 4000]], "passtime": passtime, "track": track}
+slide は 1 つの方式に決め打ちせず、
 
-# ONNX nine マッチャーの差し込み (hshinosa 式のマージン判定つき)
-from geetest_solver.solvers import register_onnx_matcher
-@register_onnx_matcher
-def my_matcher(prompt_bytes, grid_bytes) -> list[float]:
-    return [0.0]*9
-```
+- `MORPH_GRADIENT`
+- `Canny`
 
-プロキシ / ヘッダ / 軌跡なしで：
+の両方で探して、スコアが高い方を使っています。
 
-```python
-s = GeetestSolver(captcha_id, risk_type="slide", proxy="http://127.0.0.1:8080",
-                  track_enable=True, timeout=20)
-```
+`ypos` が取れるときはその周辺を優先して、怪しいときは全体検索にフォールバックします。
 
-GeeTest が `gcaptcha4.js` を更新して定数が腐ったら：
+片方だけだと普通に外すケースがあったので、両方走らせる形にしました。
+
+### Track
+
+track はデフォルトで ON です。
+
+ベジェ曲線 + easing + 少しの jitter を入れて生成して、`td` / `td_sign` までまとめて処理します。
+
+### Config refresh
+
+GeeTest 側の JS が更新されると、`abo` や `lib` 周りの値が変わることがあります。
+
+毎回手で追うのがだるいので、更新用の処理とローカルキャッシュを入れてあります。
 
 ```bash
 python -m geetest_solver.deobfuscate
 ```
 
-非ブラウザ TLS に `svg_seed` を返すサイト用 (hshinosa の `BrowserVT` のアイデア、おまけ)：
+## Install
+
+基本:
+
+```bash
+pip install -e .
+```
+
+slide を使うなら OpenCV も入れてください。普段はこれがおすすめです。
+
+```bash
+pip install -e ".[full]"
+```
+
+icon 用の追加依存:
+
+```bash
+pip install -e ".[icon]"
+```
+
+Playwright を使う場合:
+
+```bash
+pip install -e ".[browser]"
+playwright install chromium
+```
+
+## Usage
+
+一番シンプルなのはこれです。
 
 ```python
-from geetest_solver.browser_vt import BrowserVT  # playwright が要ります
-vt = BrowserVT(signup_url="https://example.com/signup", ...)
-token, lot = vt.get_vt_for("user@example.com")
+from geetest_solver import GeetestSolver
+
+solver = GeetestSolver(
+    captcha_id="54088bb07d2df3c46b79f80300b0abbe",
+    risk_type="slide",
+)
+
+print(solver.solve())
 ```
 
-## 中身の構成
+成功するとだいたいこんな形で返ります。
 
+```python
+{
+    "lot_number": "...",
+    "pass_token": "...",
+    "gen_time": "...",
+    "captcha_output": "..."
+}
 ```
+
+proxy もそのまま渡せます。
+
+```python
+solver = GeetestSolver(
+    captcha_id,
+    risk_type="slide",
+    proxy="http://127.0.0.1:8080",
+    timeout=20,
+)
+```
+
+対応 `risk_type`:
+
+```text
+ai
+slide
+match
+winlinze
+gobang
+nine
+icon
+word
+phrase
+```
+
+## Custom solver
+
+内蔵 solver を使わず、自分の処理に差し替えることもできます。
+
+```python
+from geetest_solver import GeetestSolver
+
+@GeetestSolver.register_solver("icon")
+def my_icon(data, solver):
+    from geetest_solver.tracks import gen_click_track
+
+    clicks = [(0.3, 0.4)]
+    track, passtime = gen_click_track(clicks)
+
+    return {
+        "userresponse": [[3000, 4000]],
+        "passtime": passtime,
+        "track": track,
+    }
+```
+
+nine 用の matcher も差し替えできます。
+
+```python
+from geetest_solver.solvers import register_onnx_matcher
+
+@register_onnx_matcher
+def my_matcher(prompt_bytes, grid_bytes) -> list[float]:
+    return [0.0] * 9
+```
+
+## Project structure
+
+```text
 geetest_solver/
-  __init__.py  client.py (GeetestSolver 本体: load/verify/solve + レジストリ)
-  config.py (abo/lib/biht をライブ更新できるやつ)  crypto.py (pt0/1/2 + td_sign)
-  protocol_utils.py (lotParser + PoW)  tracks.py (ベジェ軌跡 + track_zip)
-  solvers/slide.py (ハイブリッド)  solvers/board.py (五目/match/winlinze)
-  solvers/nine_icon.py (セグメンテーション + ONNX フック)
-  yolo_icons.py (おまけの YOLO 検出バックエンド)
-  deobfuscate.py  browser_vt.py (おまけ)
-tests/test_offline.py  examples/solve_slide.py
+├── client.py
+│   └── load / verify / solve
+├── config.py
+│   └── protocol constants / cache
+├── crypto.py
+│   └── pt0 / pt1 / pt2 / td_sign
+├── protocol_utils.py
+│   └── PoW / lot parser
+├── tracks.py
+│   └── pointer track generation
+├── solvers/
+│   ├── slide.py
+│   ├── board.py
+│   └── nine_icon.py
+├── yolo_icons.py
+├── deobfuscate.py
+└── browser_vt.py
+
+tests/test_offline.py
+examples/solve_slide.py
 ```
 
-## 実測 — 公式デモ (2026-09-18)
+## Tested
 
-https://www.geetest.com/en/adaptive-captcha-demo
-(`captcha_id=fcd636b4514bf7ac4143922550b3008b`、ブラウザなし直 HTTPS)：
+公式デモで確認した結果です。
 
-| risk_type | 結果 |
+Tested: **2026-09-18**
+
+| risk_type | result |
 |---|---|
 | `slide` | ✅ 3/3 |
 | `ai` | ✅ 3/3 |
 | `winlinze` | ✅ 3/3 |
-| `match` | ✅ 6/6 (たまに難しい盤面あり) |
-| `icon` | ❌ (なんか実装できなかった、下を見てください) |
+| `match` | ✅ 6/6 |
+| `icon` | ⚠️ unstable |
 
-live で検証してコードに反映したこと：
+### いくつかハマったところ
 
-- `match` の盤面は**空行 (0) 完成も勝ち扱い** —
-  実測したら `[[0,3,1],[2,0,2],[0,1,3]]` がそれ以外で解けませんでした。
-  `solve_match` は非ゼロ成立を優先しつつ、交換セルが成立ラインに載る
-  場合だけゼロ成立にフォールバックします (wulu よりちょっと厳しめ。
-  wulu は無関係なゼロ成立も採用しちゃう)。
-- `ques` は **2次元リスト**で来ます (フラット想定だと IndexError で死ぬ)。両対応しました。
-- `icon` の `userresponse` は **ピクセル座標 x*33 / y*49**
-  (wulu 想定の percent*10000 じゃありません。GeekedTest＋syncrain と一致、live 検証済み)。
-- `icon` プロンプトは busy な写真背景の上に純黒シルエット：
-  NCC/テンプレマッチは ~0.65 で頭打ち、有意なピークが出ません
-  (明暗2値マップ・Canny 輪郭・chamfer 距離を試しました)。
-  外部モデル/サーバなしの全参考リポジトリ共通の壁です
-  (Geeked は `ddddocr` サーバ必須、hshinosa は非公開 SigLIP ONNX 必須)。
-  うちはセグメンテーション＋原寸探索＋ハンガリアン法 (+任意YOLO) の
-  ベストエフォート実装です。icon で本番精度が要るなら
-  `register_solver("icon", ...)` か `register_onnx_matcher(...)` で分類器を差してください。
+`match` の `ques` は 2 次元リストで来るケースがありました。
+最初フラット前提で書いて普通に `IndexError` 踏んだので、今は両対応です。
 
-## テスト (オフライン、captcha_id 不要)
+`slide` は画像によって gradient と Canny の得意不得意が割と違います。
+このへんは「これだけ使っとけばOK」がなかったので、両方試して選ぶ形になっています。
+
+### icon について
+
+ここが今の一番弱いところです。
+
+プロンプト側は比較的きれいなシルエットなのに、実際の画像側は写真背景の上にアイコンが載るので、普通の template matching だけだとかなり厳しいです。
+
+今は、
+
+- segmentation
+- multi-scale matching
+- Hungarian matching
+- optional YOLO backend
+
+あたりを組み合わせています。
+
+モデルなしでもベストエフォートでは動きますが、安定した精度が必要なら独自 matcher / solver を差し込む前提で考えた方がいいです。
+
+## Tests
+
+ネット接続や `captcha_id` がなくても動く offline test があります。
 
 ```bash
 python -m pip install opencv-python numpy Pillow pycryptodome requests
 python tests/test_offline.py
 ```
 
-## 免責
+PoW、crypto、board solver、track、slide detection あたりをまとめて確認できます。
 
-研究・学習用です。GeeTest とは無関係です。対象サイトの利用規約を守って使ってくださいね。
+## References
+
+この repo は以下の実装をかなり参考にしています。
+
+| Repo | 参考にしたところ |
+|---|---|
+| [xKiian/GeekedTest](https://github.com/xKiian/GeekedTest) | 基本 protocol、board solver、deobfuscate 周り |
+| [wulu007/geetest-bypass](https://github.com/wulu007/geetest-bypass) | protocol constants、track、solver registry など |
+| [aster-go/Datadome-GeeTest-Captcha-Solver](https://github.com/aster-go/Datadome-GeeTest-Captcha-Solver) | Canny / template matching 周り |
+| [hshinosa/geetest-solver-nine](https://github.com/hshinosa/geetest-solver-nine) | nine matcher の IF、BrowserVT のアイデア |
+| [variablepy/GeeTest-Solver](https://github.com/variablepy/GeeTest-Solver) | module 構成 |
+| [syncrain/geetest-solver](https://github.com/syncrain/geetest-solver) | icon 周り、YOLO backend |
+| [Evil-Bane/Geetest-Solver](https://github.com/Evil-Bane/Geetest-Solver) | 画像マッチング周りのアイデア |
+
+実装の方向性がかなり違うので、読み比べるだけでも結構おもしろかったです。
+
+各作者に感謝します。
+
+## Disclaimer
+
+Research / educational use only.
+
+GeeTest とは関係ありません。
+利用する場合は対象サービスの利用規約やルールを確認してください。
