@@ -14,6 +14,8 @@ The following repositories are referenced in the implementation and/or documenta
 
 Their original copyright and license terms remain with their respective authors.
 
+Copies of the upstream MIT license files are preserved under [LICENSES/](./LICENSES/).
+
 ## Other references
 
 The following repositories were also useful as implementation references:
